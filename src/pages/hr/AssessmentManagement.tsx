@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/layouts/AdminLayout";
@@ -145,6 +146,9 @@ const AssessmentManagement = () => {
     try {
       setIsLoading(true);
       
+      // Current timestamp for timestamps
+      const now = new Date().toISOString();
+      
       // Insert the new assessment
       const { data, error } = await supabase
         .from('assessments')
@@ -152,7 +156,9 @@ const AssessmentManagement = () => {
           title,
           description,
           assessment_type: assessmentType,
-          created_by: 'system' // This would be the actual user ID in a real app
+          created_by: 'system', // This would be the actual user ID in a real app
+          created_at: now,
+          updated_at: now
         })
         .select();
 

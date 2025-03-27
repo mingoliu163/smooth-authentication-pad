@@ -41,6 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { PlusCircle, Edit, Trash2, FileText, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AssessmentQuestion {
   id: string;
@@ -63,6 +64,7 @@ interface Assessment {
 
 const AssessmentManagement = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -143,6 +145,12 @@ const AssessmentManagement = () => {
       return;
     }
 
+    // Check if user is authenticated
+    if (!user) {
+      toast.error("You must be logged in to create an assessment");
+      return;
+    }
+
     try {
       setIsLoading(true);
       
@@ -156,7 +164,7 @@ const AssessmentManagement = () => {
           title,
           description,
           assessment_type: assessmentType,
-          created_by: 'system', // This would be the actual user ID in a real app
+          created_by: user.id, // Use the authenticated user's ID
           created_at: now,
           updated_at: now
         })

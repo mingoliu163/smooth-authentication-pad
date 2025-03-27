@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/layouts/AdminLayout";
@@ -90,7 +89,10 @@ const AssessmentManagement = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (assessmentsError) throw assessmentsError;
+      if (assessmentsError) {
+        console.error('Error fetching assessments:', assessmentsError);
+        throw assessmentsError;
+      }
 
       if (assessmentsData) {
         // For each assessment, fetch its questions
@@ -154,6 +156,8 @@ const AssessmentManagement = () => {
     try {
       setIsLoading(true);
       
+      console.log("Creating assessment with user ID:", user.id);
+      
       // Current timestamp for timestamps
       const now = new Date().toISOString();
       
@@ -170,7 +174,10 @@ const AssessmentManagement = () => {
         })
         .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating assessment:', error);
+        throw error;
+      }
 
       if (data && data[0]) {
         toast.success("Assessment created successfully");
@@ -180,9 +187,9 @@ const AssessmentManagement = () => {
         // Navigate to edit page for the new assessment
         navigate(`/hr/assessments/${data[0].id}/edit`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating assessment:', error);
-      toast.error("Failed to create assessment");
+      toast.error(`Failed to create assessment: ${error.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }

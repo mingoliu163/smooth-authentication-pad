@@ -42,9 +42,9 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "assessment_questions_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
+            foreignKeyName: "assessment_questions_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
             referencedRelation: "assessments"
             referencedColumns: ["id"]
           },

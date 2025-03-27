@@ -52,6 +52,7 @@ export type Database = {
       }
       assessments: {
         Row: {
+          assessment_type: string
           created_at: string
           created_by: string
           description: string | null
@@ -60,6 +61,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assessment_type?: string
           created_at?: string
           created_by: string
           description?: string | null
@@ -68,6 +70,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assessment_type?: string
           created_at?: string
           created_by?: string
           description?: string | null
@@ -234,6 +237,42 @@ export type Database = {
             columns: ["id"]
             isOneToOne: true
             referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_exams: {
+        Row: {
+          created_at: string
+          exam_id: string
+          id: string
+          interview_id: string
+        }
+        Insert: {
+          created_at?: string
+          exam_id: string
+          id?: string
+          interview_id: string
+        }
+        Update: {
+          created_at?: string
+          exam_id?: string
+          id?: string
+          interview_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_exams_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exam_bank"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_exams_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
             referencedColumns: ["id"]
           },
         ]

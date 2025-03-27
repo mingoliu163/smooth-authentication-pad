@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -100,6 +99,9 @@ const ExamBank = () => {
     try {
       setIsLoading(true);
       
+      // Set current timestamp for created_at and updated_at fields
+      const now = new Date().toISOString();
+      
       const { data, error } = await supabase
         .from('exam_bank')
         .insert({
@@ -107,7 +109,9 @@ const ExamBank = () => {
           description: description || null,
           difficulty,
           category,
-          created_by: user?.id
+          created_by: user?.id || '',
+          created_at: now,
+          updated_at: now
         })
         .select();
 

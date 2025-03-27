@@ -12,9 +12,9 @@ export type Database = {
       assessment_questions: {
         Row: {
           assessment_id: string
-          expected_answer: string | null
+          expected_answer: string
           id: string
-          options: Json | null
+          options: Json
           points: number
           question_order: number
           question_text: string
@@ -22,9 +22,9 @@ export type Database = {
         }
         Insert: {
           assessment_id: string
-          expected_answer?: string | null
+          expected_answer: string
           id?: string
-          options?: Json | null
+          options: Json
           points?: number
           question_order?: number
           question_text: string
@@ -32,9 +32,9 @@ export type Database = {
         }
         Update: {
           assessment_id?: string
-          expected_answer?: string | null
+          expected_answer?: string
           id?: string
-          options?: Json | null
+          options?: Json
           points?: number
           question_order?: number
           question_text?: string
@@ -42,9 +42,9 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "assessment_questions_assessment_id_fkey"
-            columns: ["assessment_id"]
-            isOneToOne: false
+            foreignKeyName: "assessment_questions_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
             referencedRelation: "assessments"
             referencedColumns: ["id"]
           },
@@ -52,7 +52,6 @@ export type Database = {
       }
       assessments: {
         Row: {
-          assessment_type: string
           created_at: string
           created_by: string
           description: string | null
@@ -61,7 +60,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          assessment_type: string
           created_at?: string
           created_by: string
           description?: string | null
@@ -70,7 +68,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          assessment_type?: string
           created_at?: string
           created_by?: string
           description?: string | null
@@ -82,9 +79,9 @@ export type Database = {
       }
       candidate_responses: {
         Row: {
-          ai_feedback: string | null
-          ai_score: number | null
-          candidate_response: string | null
+          ai_feedback: string
+          ai_score: number
+          candidate_response: string
           created_at: string
           id: string
           interview_assessment_id: string
@@ -92,9 +89,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          ai_feedback?: string | null
-          ai_score?: number | null
-          candidate_response?: string | null
+          ai_feedback: string
+          ai_score: number
+          candidate_response: string
           created_at?: string
           id?: string
           interview_assessment_id: string
@@ -102,9 +99,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          ai_feedback?: string | null
-          ai_score?: number | null
-          candidate_response?: string | null
+          ai_feedback?: string
+          ai_score?: number
+          candidate_response?: string
           created_at?: string
           id?: string
           interview_assessment_id?: string
@@ -180,13 +177,13 @@ export type Database = {
         }
         Insert: {
           category: string
-          created_at?: string
+          created_at: string
           created_by: string
           description?: string | null
           difficulty: string
           id?: string
           title: string
-          updated_at?: string
+          updated_at: string
         }
         Update: {
           category?: string
@@ -233,9 +230,9 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "interview_assessments_assessment_id_fkey"
-            columns: ["assessment_id"]
-            isOneToOne: false
+            foreignKeyName: "interview_assessments_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
             referencedRelation: "assessments"
             referencedColumns: ["id"]
           },

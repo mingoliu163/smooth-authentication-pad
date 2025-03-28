@@ -18,7 +18,10 @@ import {
   FileText,
   Shield,
   UserCheck,
+  UserX,
+  Bell,
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const AdminDashboard = () => {
   const { isAdmin } = useAuth();
@@ -28,6 +31,7 @@ const AdminDashboard = () => {
     admins: 0,
     hrUsers: 0,
     jobSeekers: 0,
+    pendingApprovals: 0
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -41,10 +45,10 @@ const AdminDashboard = () => {
       try {
         setIsLoading(true);
 
-        // Get user stats by role
+        // Get user stats by role and approval status
         const { data, error } = await supabase
           .from("profiles")
-          .select("role");
+          .select("role, approved");
 
         if (error) {
           throw error;
@@ -56,12 +60,18 @@ const AdminDashboard = () => {
         const jobSeekers = data.filter(
           (user) => user.role === "job_seeker"
         ).length;
+        
+        // Calculate pending approvals (admin or HR without approval)
+        const pendingApprovals = data.filter(
+          (user) => (user.role === "admin" || user.role === "hr") && !user.approved
+        ).length;
 
         setStats({
           totalUsers: data.length,
           admins,
           hrUsers,
           jobSeekers,
+          pendingApprovals
         });
       } catch (error) {
         console.error("Error fetching stats:", error);
@@ -137,6 +147,23 @@ const AdminDashboard = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">System Administration</h1>
         </div>
+
+        {stats.pendingApprovals > 0 && (
+          <Alert variant="default" className="bg-amber-50 border-amber-200">
+            <Bell className="h-5 w-5 text-amber-600" />
+            <AlertTitle className="text-amber-800">Pending Approvals</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              {stats.pendingApprovals} user{stats.pendingApprovals > 1 ? 's' : ''} awaiting approval.
+              <Button 
+                variant="outline" 
+                className="ml-4 bg-white border-amber-300 text-amber-800 hover:bg-amber-100"
+                onClick={() => navigate("/admin/users")}
+              >
+                Review Users
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {isLoading ? (
           <div className="flex justify-center p-8">

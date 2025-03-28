@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      // Check if the user is approved or a job seeker or an admin
+      // Check if the user is approved or a job seeker
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("role, approved")
@@ -65,9 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      // Allow job seekers and admins to log in without approval
-      // Only HR professionals need approval
-      if (profileData && profileData.role === 'hr' && !profileData.approved) {
+      // Only newly registered HR professionals and admins need approval
+      // Job seekers can always log in
+      if (profileData && (profileData.role === 'hr' || profileData.role === 'admin') && !profileData.approved) {
         toast.error("Your account requires admin approval before you can log in");
         await supabase.auth.signOut();
         return;
@@ -88,9 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("Signing up with:", email, firstName, lastName, role);
       setLoading(true);
       
-      // Determine if the account should be automatically approved
-      // Auto-approve job seekers and admins, only HR needs approval
-      const autoApprove = role === 'job_seeker' || role === 'admin';
+      // Only job seekers are automatically approved
+      // HR and admin accounts need approval
+      const autoApprove = role === 'job_seeker';
       
       // Sign up the user
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -127,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           first_name: firstName || null,
           last_name: lastName || null,
           role: role,
-          approved: autoApprove // Auto-approve job seekers and admins
+          approved: autoApprove // Only job seekers are auto-approved
         });
       
       if (profileError) {
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       navigate("/");
       
-      if (role === 'hr') {
+      if (role === 'hr' || role === 'admin') {
         toast.success("Account created successfully. An admin must approve your account before you can log in.");
       } else {
         toast.success("Account created successfully. Please check your email for verification.");

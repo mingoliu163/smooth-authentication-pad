@@ -52,11 +52,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
+      // Get the current session to access the user
+      const { data: sessionData } = await supabase.auth.getSession();
+      const currentUser = sessionData.session?.user;
+      
+      if (!currentUser) {
+        toast.error("Failed to get user information");
+        return;
+      }
+      
       // Check if the user is approved or a job seeker
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("role, approved")
-        .eq("id", user?.id || '')
+        .eq("id", currentUser.id)
         .single();
       
       if (profileError) {
@@ -65,9 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      // Only newly registered HR professionals and admins need approval
-      // Job seekers can always log in
-      if (profileData && (profileData.role === 'hr' || profileData.role === 'admin') && !profileData.approved) {
+      // Only newly registered HR professionals need approval
+      // Administrators and job seekers can always log in
+      if (profileData && profileData.role === 'hr' && !profileData.approved) {
         toast.error("Your account requires admin approval before you can log in");
         await supabase.auth.signOut();
         return;

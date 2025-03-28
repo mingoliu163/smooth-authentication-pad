@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { InfoIcon } from "lucide-react";
 
 const signupSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -22,6 +24,7 @@ const signupSchema = z.object({
 const Signup = () => {
   const { signUp, user, loading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string>("job_seeker");
 
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
@@ -137,7 +140,13 @@ const Signup = () => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Role</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select 
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          setSelectedRole(value);
+                        }} 
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select your role" />
@@ -153,6 +162,18 @@ const Signup = () => {
                     </FormItem>
                   )}
                 />
+                
+                {selectedRole !== "job_seeker" && (
+                  <Alert variant="default" className="bg-amber-50 text-amber-800 border-amber-200">
+                    <InfoIcon className="h-4 w-4 mr-2" />
+                    <AlertDescription>
+                      {selectedRole === "admin" 
+                        ? "Admin accounts require approval before login is allowed." 
+                        : "HR Professional accounts require approval before login is allowed."}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
                 <Button 
                   type="submit" 
                   className="w-full" 

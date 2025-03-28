@@ -10,6 +10,7 @@ export type Profile = {
   bio: string | null;
   avatar_url: string | null;
   role: UserRole;
+  approved: boolean;
 };
 
 export type AuthContextType = {

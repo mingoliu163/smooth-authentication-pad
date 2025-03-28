@@ -40,17 +40,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signIn(email: string, password: string) {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
       
-      if (error) {
-        toast.error(error.message);
+      // First perform the sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
+      
+      if (signInError) {
+        toast.error(signInError.message);
         return;
       }
       
-      // Redirect will happen after onAuthStateChange updates the profile and userRole
+      // Check if the user is approved or a job seeker
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("role, approved")
+        .eq("id", user?.id || '')
+        .single();
+      
+      if (profileError) {
+        toast.error("Could not verify account status");
+        await supabase.auth.signOut();
+        return;
+      }
+      
+      // For HR or admin roles, require approval
+      if (profileData.role !== 'job_seeker' && !profileData.approved) {
+        toast.error("Your account requires admin approval before you can log in");
+        await supabase.auth.signOut();
+        return;
+      }
+      
+      // If we got here, the sign-in is successful
       toast.success("Signed in successfully");
     } catch (error: any) {
       toast.error(error.message || "An error occurred during sign in");
+      await supabase.auth.signOut();
     } finally {
       setLoading(false);
     }
@@ -60,6 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("Signing up with:", email, firstName, lastName, role);
       setLoading(true);
+      
+      // Determine if the account should be automatically approved
+      const autoApprove = role === 'job_seeker';
       
       // Sign up the user
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -95,7 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: authData.user.id,
           first_name: firstName || null,
           last_name: lastName || null,
-          role: role
+          role: role,
+          approved: autoApprove // Only job seekers are auto-approved
         });
       
       if (profileError) {
@@ -106,7 +136,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       navigate("/");
-      toast.success("Account created successfully. Please check your email for verification.");
+      
+      if (role !== 'job_seeker') {
+        toast.success("Account created successfully. An admin must approve your account before you can log in.");
+      } else {
+        toast.success("Account created successfully. Please check your email for verification.");
+      }
     } catch (error: any) {
       console.error("Error during signup:", error);
       toast.error(error.message || "An error occurred during sign up");

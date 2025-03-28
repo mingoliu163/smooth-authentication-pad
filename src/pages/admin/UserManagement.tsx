@@ -43,7 +43,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { UserPlus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { UserPlus, MoreHorizontal, Pencil, Trash2, Check, X } from "lucide-react";
 import AdminLayout from "@/components/layouts/AdminLayout";
 
 type UserRole = "admin" | "hr" | "job_seeker";
@@ -54,6 +54,7 @@ type UserProfile = {
   first_name: string | null;
   last_name: string | null;
   role: UserRole;
+  approved: boolean;
   created_at?: string;
 };
 
@@ -94,6 +95,7 @@ const UserManagement = () => {
         first_name: profile.first_name,
         last_name: profile.last_name,
         role: profile.role,
+        approved: profile.approved ?? false,
         // We don't have emails from client side, so we'll display a placeholder
         email: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'User',
       }));
@@ -145,6 +147,7 @@ const UserManagement = () => {
           first_name: editingUser.first_name,
           last_name: editingUser.last_name,
           role: editingUser.role,
+          approved: editingUser.approved
         })
         .eq("id", editingUser.id);
       
@@ -179,6 +182,50 @@ const UserManagement = () => {
     }
   };
 
+  const handleApproveUser = async (userId: string) => {
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ approved: true })
+        .eq("id", userId);
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast.success("User approved successfully");
+      fetchUsers();
+    } catch (error: any) {
+      console.error("Error approving user:", error);
+      toast.error(error.message || "Failed to approve user");
+    }
+  };
+
+  const handleRevokeApproval = async (userId: string) => {
+    try {
+      // Cannot revoke your own approval
+      if (userId === user?.id) {
+        toast.error("You cannot revoke your own account access");
+        return;
+      }
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update({ approved: false })
+        .eq("id", userId);
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast.success("User approval revoked");
+      fetchUsers();
+    } catch (error: any) {
+      console.error("Error revoking user approval:", error);
+      toast.error(error.message || "Failed to revoke user approval");
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6 p-6">
@@ -194,7 +241,7 @@ const UserManagement = () => {
           <CardHeader>
             <CardTitle>All Users</CardTitle>
             <CardDescription>
-              Manage user accounts and their roles
+              Manage user accounts, their roles, and approval status
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -209,6 +256,7 @@ const UserManagement = () => {
                     <TableHead>User</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -235,32 +283,75 @@ const UserManagement = () => {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Actions</span>
+                        {user.role !== 'job_seeker' && (
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            user.approved
+                              ? "bg-green-100 text-green-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}>
+                            {user.approved ? "Approved" : "Pending Approval"}
+                          </span>
+                        )}
+                        {user.role === 'job_seeker' && (
+                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800">
+                            Auto-approved
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-1">
+                          {/* Edit and delete dropdown */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setEditingUser(user);
+                                  setIsEditDialogOpen(true);
+                                }}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
+                          {/* Approve/Revoke buttons for non-job seekers */}
+                          {user.role !== 'job_seeker' && !user.approved && (
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="text-green-600 hover:text-green-700 hover:bg-green-100"
+                              onClick={() => handleApproveUser(user.id)}
+                              title="Approve user"
+                            >
+                              <Check className="h-4 w-4" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditingUser(user);
-                                setIsEditDialogOpen(true);
-                              }}
+                          )}
+                          {user.role !== 'job_seeker' && user.approved && (
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="text-red-600 hover:text-red-700 hover:bg-red-100"
+                              onClick={() => handleRevokeApproval(user.id)}
+                              title="Revoke approval"
                             >
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteUser(user.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -397,6 +488,26 @@ const UserManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
+              {editingUser.role !== 'job_seeker' && (
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="editApproved">Approved:</Label>
+                  <Select
+                    value={editingUser.approved ? "true" : "false"}
+                    onValueChange={(value) => setEditingUser({ 
+                      ...editingUser, 
+                      approved: value === "true" 
+                    })}
+                  >
+                    <SelectTrigger className="w-24">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">Yes</SelectItem>
+                      <SelectItem value="false">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>

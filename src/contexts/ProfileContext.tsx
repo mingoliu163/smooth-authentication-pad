@@ -46,6 +46,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       
       // Log role for debugging
       console.log("User role set to:", data.role || 'job_seeker');
+      console.log("Approval status:", data.approved);
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {

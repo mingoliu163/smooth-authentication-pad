@@ -119,6 +119,7 @@ const InterviewManagement = () => {
   const fetchInterviews = async () => {
     try {
       setIsLoading(true);
+      console.log("Fetching interviews...");
       
       // Fetch interviews
       const { data: interviewsData, error: interviewsError } = await supabase
@@ -126,7 +127,12 @@ const InterviewManagement = () => {
         .select('*')
         .order('date', { ascending: true });
       
-      if (interviewsError) throw interviewsError;
+      if (interviewsError) {
+        console.error("Error fetching interviews:", interviewsError);
+        throw interviewsError;
+      }
+      
+      console.log("Interviews data:", interviewsData);
       
       // For each interview, fetch its interviewers and exams
       const interviewsWithDetails = await Promise.all(
@@ -137,7 +143,12 @@ const InterviewManagement = () => {
             .select('user_id')
             .eq('interview_id', interview.id);
           
-          if (interviewersError) throw interviewersError;
+          if (interviewersError) {
+            console.error("Error fetching interviewers:", interviewersError);
+            throw interviewersError;
+          }
+          
+          console.log(`Interviewers for interview ${interview.id}:`, interviewersData);
           
           // Get full user data for each interviewer
           const userIds = interviewersData.map(item => item.user_id);
@@ -149,7 +160,12 @@ const InterviewManagement = () => {
               .select('id, first_name, last_name')
               .in('id', userIds);
             
-            if (usersError) throw usersError;
+            if (usersError) {
+              console.error("Error fetching user profiles:", usersError);
+              throw usersError;
+            }
+            
+            console.log("Found user profiles:", usersData);
             interviewers = usersData as User[];
           }
           
@@ -179,6 +195,8 @@ const InterviewManagement = () => {
               
             if (!examDetailsError && examDetails) {
               exams = examDetails as Exam[];
+            } else if (examDetailsError) {
+              console.error("Error fetching exam details:", examDetailsError);
             }
           }
           
@@ -190,6 +208,7 @@ const InterviewManagement = () => {
         })
       );
       
+      console.log("Interviews with details:", interviewsWithDetails);
       setInterviews(interviewsWithDetails);
     } catch (error) {
       console.error("Error fetching interviews:", error);
@@ -202,12 +221,18 @@ const InterviewManagement = () => {
 
   const fetchUsers = async () => {
     try {
+      console.log("Fetching users...");
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name');
+        .select('id, first_name, last_name, role')
+        .or('role.eq.hr,role.eq.admin');
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching users:", error);
+        throw error;
+      }
       
+      console.log("Users data:", data);
       setUsers(data as User[]);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -217,11 +242,17 @@ const InterviewManagement = () => {
 
   const fetchAssessments = async () => {
     try {
+      console.log("Fetching assessments...");
       const { data, error } = await supabase
         .from('assessments')
         .select('id, title, assessment_type');
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching assessments:", error);
+        throw error;
+      }
+      
+      console.log("Assessments data:", data);
       
       if (data) {
         setAvailableAssessments(data.map(item => ({
@@ -238,11 +269,17 @@ const InterviewManagement = () => {
 
   const fetchExams = async () => {
     try {
+      console.log("Fetching exams...");
       const { data, error } = await supabase
         .from('exam_bank')
         .select('id, title, difficulty, category');
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching exams:", error);
+        throw error;
+      }
+      
+      console.log("Exams data:", data);
       
       if (data) {
         setAvailableExams(data as Exam[]);
@@ -264,6 +301,7 @@ const InterviewManagement = () => {
       
       // Get values from form
       const values = form.getValues();
+      console.log("Scheduling interview with values:", values);
       
       // Insert the interview
       const { data: interview, error: insertError } = await supabase
@@ -277,7 +315,12 @@ const InterviewManagement = () => {
         .select()
         .single();
       
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("Error inserting interview:", insertError);
+        throw insertError;
+      }
+      
+      console.log("Interview created:", interview);
       
       // Insert the interviewers
       if (values.interviewer_ids.length > 0) {
@@ -286,15 +329,22 @@ const InterviewManagement = () => {
           user_id
         }));
         
+        console.log("Inserting interviewers:", interviewerInserts);
+        
         const { error: interviewersError } = await supabase
           .from('interview_interviewers')
           .insert(interviewerInserts);
         
-        if (interviewersError) throw interviewersError;
+        if (interviewersError) {
+          console.error("Error inserting interviewers:", interviewersError);
+          throw interviewersError;
+        }
       }
       
       // Assign exam if selected
       if (values.exam_id) {
+        console.log("Assigning exam:", values.exam_id, "to interview:", interview.id);
+        
         const { error: examError } = await supabase
           .from('interview_exams')
           .insert({
@@ -359,6 +409,8 @@ const InterviewManagement = () => {
   const handleAddExam = async () => {
     if (selectedInterview && selectedExam) {
       try {
+        console.log("Adding exam:", selectedExam, "to interview:", selectedInterview.id);
+        
         const { error } = await supabase
           .from('interview_exams')
           .insert({
@@ -366,7 +418,10 @@ const InterviewManagement = () => {
             exam_id: selectedExam
           });
           
-        if (error) throw error;
+        if (error) {
+          console.error("Error assigning exam:", error);
+          throw error;
+        }
         
         // Update local state
         const updatedInterviews = interviews.map(interview => {
@@ -519,15 +574,19 @@ const InterviewManagement = () => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {users.map((user) => (
-                                <SelectItem 
-                                  key={user.id} 
-                                  value={user.id}
-                                  disabled={field.value.includes(user.id)}
-                                >
-                                  {getUserFullName(user)}
-                                </SelectItem>
-                              ))}
+                              {users.length === 0 ? (
+                                <div className="p-2 text-sm text-gray-500">No interviewers available</div>
+                              ) : (
+                                users.map((user) => (
+                                  <SelectItem 
+                                    key={user.id} 
+                                    value={user.id}
+                                    disabled={field.value.includes(user.id)}
+                                  >
+                                    {getUserFullName(user)}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                           {field.value.length > 0 && (
@@ -575,14 +634,18 @@ const InterviewManagement = () => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {availableExams.map((exam) => (
-                                <SelectItem 
-                                  key={exam.id} 
-                                  value={exam.id}
-                                >
-                                  {exam.title} ({exam.category}, {exam.difficulty})
-                                </SelectItem>
-                              ))}
+                              {availableExams.length === 0 ? (
+                                <div className="p-2 text-sm text-gray-500">No exams available</div>
+                              ) : (
+                                availableExams.map((exam) => (
+                                  <SelectItem 
+                                    key={exam.id} 
+                                    value={exam.id}
+                                  >
+                                    {exam.title} ({exam.category}, {exam.difficulty})
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -764,11 +827,15 @@ const InterviewManagement = () => {
                   <SelectValue placeholder="Select an assessment" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableAssessments.map((assessment) => (
-                    <SelectItem key={assessment.id} value={assessment.id}>
-                      {assessment.title} ({assessment.assessmentType})
-                    </SelectItem>
-                  ))}
+                  {availableAssessments.length === 0 ? (
+                    <div className="p-2 text-sm text-gray-500">No assessments available</div>
+                  ) : (
+                    availableAssessments.map((assessment) => (
+                      <SelectItem key={assessment.id} value={assessment.id}>
+                        {assessment.title} ({assessment.assessmentType})
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -803,11 +870,15 @@ const InterviewManagement = () => {
                   <SelectValue placeholder="Select an exam" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableExams.map((exam) => (
-                    <SelectItem key={exam.id} value={exam.id}>
-                      {exam.title} ({exam.category}, {exam.difficulty})
-                    </SelectItem>
-                  ))}
+                  {availableExams.length === 0 ? (
+                    <div className="p-2 text-sm text-gray-500">No exams available</div>
+                  ) : (
+                    availableExams.map((exam) => (
+                      <SelectItem key={exam.id} value={exam.id}>
+                        {exam.title} ({exam.category}, {exam.difficulty})
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

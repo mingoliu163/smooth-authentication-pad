@@ -163,13 +163,11 @@ const Signup = () => {
                   )}
                 />
                 
-                {selectedRole !== "job_seeker" && (
+                {selectedRole === "hr" && (
                   <Alert variant="default" className="bg-amber-50 text-amber-800 border-amber-200">
                     <InfoIcon className="h-4 w-4 mr-2" />
                     <AlertDescription>
-                      {selectedRole === "admin" 
-                        ? "Admin accounts require approval before login is allowed." 
-                        : "HR Professional accounts require approval before login is allowed."}
+                      HR Professional accounts require approval before login is allowed.
                     </AlertDescription>
                   </Alert>
                 )}

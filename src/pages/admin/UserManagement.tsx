@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,8 +44,7 @@ import {
 import { toast } from "sonner";
 import { UserPlus, MoreHorizontal, Pencil, Trash2, Check, X } from "lucide-react";
 import AdminLayout from "@/components/layouts/AdminLayout";
-
-type UserRole = "admin" | "hr" | "job_seeker";
+import { UserRole } from "@/types/auth";
 
 type UserProfile = {
   id: string;
@@ -226,6 +224,7 @@ const UserManagement = () => {
     }
   };
 
+  
   return (
     <AdminLayout>
       <div className="space-y-6 p-6">

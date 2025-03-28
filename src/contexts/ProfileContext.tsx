@@ -41,7 +41,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       }
 
       console.log("Profile data:", data);
-      setProfile(data);
+      setProfile(data as Profile);
       setUserRole(data.role || 'job_seeker');
       
       // Log role for debugging

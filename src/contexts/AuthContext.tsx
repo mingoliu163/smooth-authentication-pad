@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       // For HR or admin roles, require approval
-      if (profileData.role !== 'job_seeker' && !profileData.approved) {
+      if (profileData && profileData.role !== 'job_seeker' && !profileData.approved) {
         toast.error("Your account requires admin approval before you can log in");
         await supabase.auth.signOut();
         return;

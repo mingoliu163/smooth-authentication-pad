@@ -3,19 +3,48 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarIcon, BriefcaseIcon, ClockIcon, BookmarkIcon, LogOutIcon, FileTextIcon } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
+} from "@/components/ui/tabs";
+import { 
+  AlertCircle, 
+  Briefcase, 
+  Calendar, 
+  ChevronRight,
+  FileCheck
+} from "lucide-react";
 import { toast } from "sonner";
 
-interface JobListing {
+interface Job {
   id: string;
   title: string;
   company: string;
   location: string;
-  type: string;
   created_at: string;
+}
+
+interface Application {
+  id: string;
+  job_id: string;
+  status: string;
+  created_at: string;
+  job: {
+    title: string;
+    company: string;
+  };
 }
 
 interface Interview {
@@ -24,417 +53,261 @@ interface Interview {
   candidate_name: string;
   position: string;
   status: string;
-  exams: Exam[];
-}
-
-interface Exam {
-  id: string;
-  title: string;
-  difficulty: string;
-  category: string;
 }
 
 const JobSeekerDashboard = () => {
-  const { user, profile, signOut } = useAuth();
-  const [recentJobs, setRecentJobs] = useState<JobListing[]>([]);
+  const { user } = useAuth();
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isInterviewsLoading, setIsInterviewsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchRecentJobs = async () => {
+    const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
-        const { data, error } = await supabase
+        
+        if (!user) return;
+        
+        // Fetch recommended jobs
+        const { data: jobsData, error: jobsError } = await supabase
           .from("jobs")
-          .select("id, title, company, location, type, created_at")
-          .eq("is_active", true)
-          .order("created_at", { ascending: false })
+          .select("*")
           .limit(5);
-
-        if (error) {
-          throw error;
-        }
-
-        setRecentJobs(data || []);
-      } catch (err: any) {
-        console.error("Error fetching recent jobs:", err);
-        setError(err.message || "Failed to load recent jobs");
+        
+        if (jobsError) throw jobsError;
+        
+        // Fetch user applications with job details
+        const { data: applicationsData, error: applicationsError } = await supabase
+          .from("applications")
+          .select(`
+            *,
+            job:jobs (
+              title,
+              company
+            )
+          `)
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        
+        if (applicationsError) throw applicationsError;
+        
+        // Fetch user interviews
+        const { data: interviewsData, error: interviewsError } = await supabase
+          .from("interviews")
+          .select("*")
+          .eq("candidate_id", user.id)
+          .order("date", { ascending: true });
+        
+        if (interviewsError) throw interviewsError;
+        
+        setJobs(jobsData || []);
+        setApplications(applicationsData || []);
+        setInterviews(interviewsData || []);
+      } catch (error: any) {
+        console.error("Error fetching dashboard data:", error);
+        toast.error("Failed to load dashboard data");
       } finally {
         setIsLoading(false);
       }
     };
-
-    const fetchInterviews = async () => {
-      if (!user) return;
-      
-      try {
-        setIsInterviewsLoading(true);
-        
-        // Fetch interviews where candidate_name matches user's full name or email
-        const searchName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim();
-        const userEmail = user.email;
-        
-        console.log("Searching for interviews with name:", searchName, "or email:", userEmail);
-        
-        const { data: interviewsData, error: interviewsError } = await supabase
-          .from('interviews')
-          .select('*')
-          .or(`candidate_name.ilike.%${searchName}%,candidate_name.ilike.%${userEmail}%`)
-          .order('date', { ascending: true });
-        
-        if (interviewsError) {
-          console.error("Error fetching interviews:", interviewsError);
-          throw interviewsError;
-        }
-        
-        console.log("Found interviews:", interviewsData);
-        
-        // Fetch exams for each interview
-        const interviewsWithExams = await Promise.all(
-          interviewsData.map(async (interview) => {
-            const { data: examsData, error: examsError } = await supabase
-              .from('interview_exams')
-              .select('exam_id')
-              .eq('interview_id', interview.id);
-              
-            if (examsError) {
-              console.error("Error fetching exam assignments:", examsError);
-              return {
-                ...interview,
-                exams: [],
-              };
-            }
-              
-            // Get full exam data
-            let exams: Exam[] = [];
-            if (examsData && examsData.length > 0) {
-              const examIds = examsData.map(item => item.exam_id);
-              const { data: examDetails, error: examDetailsError } = await supabase
-                .from('exam_bank')
-                .select('id, title, difficulty, category')
-                .in('id', examIds);
-                
-              if (!examDetailsError && examDetails) {
-                exams = examDetails;
-              } else if (examDetailsError) {
-                console.error("Error fetching exam details:", examDetailsError);
-              }
-            }
-            
-            return {
-              ...interview,
-              exams,
-            };
-          })
-        );
-        
-        setInterviews(interviewsWithExams);
-      } catch (err: any) {
-        console.error("Error fetching interviews:", err);
-        toast.error("Failed to load interviews");
-      } finally {
-        setIsInterviewsLoading(false);
-      }
-    };
-
-    fetchRecentJobs();
-    fetchInterviews();
-  }, [user, profile]);
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      toast.success("Logged out successfully");
-    } catch (err) {
-      toast.error("Failed to sign out");
-    }
-  };
+    
+    fetchDashboardData();
+  }, [user]);
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'Beginner': return 'bg-green-100 text-green-800';
-      case 'Intermediate': return 'bg-blue-100 text-blue-800';
-      case 'Advanced': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'Technical': return 'bg-indigo-100 text-indigo-800';
-      case 'Behavioral': return 'bg-amber-100 text-amber-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+    const options: Intl.DateTimeFormatOptions = { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Welcome back, {profile?.first_name || "Job Seeker"}</h1>
-          <p className="text-gray-600">Here's an overview of your job search progress</p>
-        </div>
-        <Button 
-          variant="outline" 
-          className="flex items-center gap-2" 
-          onClick={handleSignOut}
-        >
-          <LogOutIcon className="w-4 h-4" />
-          Sign Out
-        </Button>
+    <div className="container mx-auto py-8 px-4">
+      <div className="flex flex-col mb-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-gray-600">Welcome back, {user?.email}</p>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Applied Jobs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <BriefcaseIcon className="h-6 w-6 text-blue-500 mr-2" />
-              <span className="text-2xl font-bold">0</span>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Interviews</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <CalendarIcon className="h-6 w-6 text-green-500 mr-2" />
-              <span className="text-2xl font-bold">{interviews.length}</span>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Pending Responses</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <ClockIcon className="h-6 w-6 text-yellow-500 mr-2" />
-              <span className="text-2xl font-bold">0</span>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Saved Jobs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <BookmarkIcon className="h-6 w-6 text-purple-500 mr-2" />
-              <span className="text-2xl font-bold">0</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="recent-jobs" className="mb-8">
+      
+      <Tabs defaultValue="interviews" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="recent-jobs">Recent Jobs</TabsTrigger>
-          <TabsTrigger value="my-applications">My Applications</TabsTrigger>
-          <TabsTrigger value="upcoming-interviews">Upcoming Interviews</TabsTrigger>
+          <TabsTrigger value="interviews" className="flex items-center">
+            <Calendar className="mr-2 h-4 w-4" />
+            Interviews
+          </TabsTrigger>
+          <TabsTrigger value="applications" className="flex items-center">
+            <FileCheck className="mr-2 h-4 w-4" />
+            Applications
+          </TabsTrigger>
+          <TabsTrigger value="recommendations" className="flex items-center">
+            <Briefcase className="mr-2 h-4 w-4" />
+            Recommended Jobs
+          </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="recent-jobs">
+        <TabsContent value="interviews" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Latest Job Opportunities</CardTitle>
-              <CardDescription>Discover new job postings that match your profile</CardDescription>
+              <CardTitle>Upcoming Interviews</CardTitle>
+              <CardDescription>
+                Your scheduled interviews and assessments
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {isLoading ? (
+                <div className="flex justify-center p-8">
+                  <div className="w-8 h-8 border-t-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+                </div>
+              ) : interviews.length > 0 ? (
                 <div className="space-y-4">
-                  {[...Array(3)].map((_, index) => (
-                    <div key={index} className="flex flex-col space-y-2">
-                      <div className="h-4 bg-gray-200 rounded w-1/3 animate-pulse"></div>
-                      <div className="h-4 bg-gray-200 rounded w-1/4 animate-pulse"></div>
-                      <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                  {interviews.map((interview) => (
+                    <div key={interview.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="font-semibold">{interview.position} Interview</h3>
+                          <p className="text-sm text-gray-600">{formatDate(interview.date)}</p>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          interview.status === 'Completed' ? 'bg-green-100 text-green-800' : 
+                          interview.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' : 
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {interview.status}
+                        </span>
+                      </div>
+                      <div className="flex justify-end mt-2">
+                        <Button asChild variant="outline" size="sm">
+                          <Link to={`/interviews/${interview.id}`}>
+                            View Details
+                            <ChevronRight className="ml-2 h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
-              ) : error ? (
-                <div className="text-red-500">{error}</div>
-              ) : recentJobs.length > 0 ? (
+              ) : (
+                <div className="text-center p-8 border rounded-lg bg-gray-50">
+                  <AlertCircle className="mx-auto h-10 w-10 text-gray-400 mb-3" />
+                  <h3 className="font-medium text-gray-900 mb-1">No interviews scheduled</h3>
+                  <p className="text-gray-600 mb-4">
+                    You don't have any upcoming interviews at the moment.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="applications" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Applications</CardTitle>
+              <CardDescription>
+                Track the status of your job applications
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center p-8">
+                  <div className="w-8 h-8 border-t-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+                </div>
+              ) : applications.length > 0 ? (
                 <div className="space-y-4">
-                  {recentJobs.map((job) => (
-                    <div key={job.id} className="flex flex-col border-b pb-4 last:border-0">
-                      <h3 className="text-lg font-semibold">
-                        <Link to={`/jobs/${job.id}`} className="hover:text-brand-600 hover:underline">
-                          {job.title}
-                        </Link>
-                      </h3>
-                      <div className="text-sm text-gray-600">{job.company} • {job.location}</div>
-                      <div className="flex items-center mt-2">
-                        <span className="text-xs bg-gray-100 rounded-full px-2 py-1">{job.type}</span>
-                        <span className="text-xs text-gray-500 ml-2">
-                          Posted {new Date(job.created_at).toLocaleDateString()}
+                  {applications.map((application) => (
+                    <div key={application.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-semibold">{application.job?.title}</h3>
+                          <p className="text-sm text-gray-600">{application.job?.company}</p>
+                          <p className="text-xs text-gray-500 mt-1">Applied on {new Date(application.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          application.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 
+                          application.status === 'Accepted' ? 'bg-green-100 text-green-800' : 
+                          application.status === 'Rejected' ? 'bg-red-100 text-red-800' : 
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {application.status}
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4">No jobs found at the moment.</p>
-                  <p className="text-sm">Check back later for new opportunities.</p>
+                <div className="text-center p-8 border rounded-lg bg-gray-50">
+                  <AlertCircle className="mx-auto h-10 w-10 text-gray-400 mb-3" />
+                  <h3 className="font-medium text-gray-900 mb-1">No applications yet</h3>
+                  <p className="text-gray-600 mb-4">
+                    You haven't applied to any jobs yet. Browse available positions and submit your first application.
+                  </p>
+                  <Button asChild>
+                    <Link to="/jobs">Browse Jobs</Link>
+                  </Button>
                 </div>
               )}
             </CardContent>
-            <CardFooter>
-              <Button asChild variant="outline" className="w-full">
-                <Link to="/jobs">View All Jobs</Link>
-              </Button>
-            </CardFooter>
           </Card>
         </TabsContent>
         
-        <TabsContent value="my-applications">
+        <TabsContent value="recommendations" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Your Job Applications</CardTitle>
-              <CardDescription>Track the status of your applications</CardDescription>
+              <CardTitle>Recommended for You</CardTitle>
+              <CardDescription>
+                Jobs that match your profile and preferences
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8">
-                <p className="text-gray-500 mb-4">You haven't applied to any jobs yet.</p>
-                <p className="text-sm">Start applying to see your applications here.</p>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button asChild variant="outline" className="w-full">
-                <Link to="/jobs">Browse Jobs</Link>
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="upcoming-interviews">
-          <Card>
-            <CardHeader>
-              <CardTitle>Upcoming Interviews</CardTitle>
-              <CardDescription>Prepare for your scheduled interviews</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isInterviewsLoading ? (
+              {isLoading ? (
+                <div className="flex justify-center p-8">
+                  <div className="w-8 h-8 border-t-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+                </div>
+              ) : jobs.length > 0 ? (
                 <div className="space-y-4">
-                  {[...Array(2)].map((_, index) => (
-                    <div key={index} className="flex flex-col space-y-2">
-                      <div className="h-4 bg-gray-200 rounded w-1/3 animate-pulse"></div>
-                      <div className="h-4 bg-gray-200 rounded w-1/4 animate-pulse"></div>
-                      <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                  {jobs.map((job) => (
+                    <div key={job.id} className="border rounded-lg p-4">
+                      <div>
+                        <h3 className="font-semibold">{job.title}</h3>
+                        <p className="text-sm text-gray-600">{job.company}</p>
+                        <p className="text-sm text-gray-600">{job.location}</p>
+                      </div>
+                      <div className="flex justify-end mt-2">
+                        <Button asChild variant="outline" size="sm">
+                          <Link to={`/jobs/${job.id}`}>
+                            View Job
+                            <ChevronRight className="ml-2 h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
-              ) : interviews.length > 0 ? (
-                <div className="space-y-6">
-                  {interviews.map((interview) => (
-                    <Card key={interview.id} className="shadow-sm border-l-4 border-l-blue-500">
-                      <CardHeader className="pb-2">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-lg">{interview.position}</CardTitle>
-                            <p className="text-sm text-gray-600 mt-1">
-                              <CalendarIcon className="w-4 h-4 inline-block mr-1" />
-                              {formatDate(interview.date)}
-                            </p>
-                          </div>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            interview.status === "Scheduled" ? "bg-blue-100 text-blue-800" : 
-                            interview.status === "Completed" ? "bg-green-100 text-green-800" : 
-                            "bg-gray-100 text-gray-800"
-                          }`}>
-                            {interview.status}
-                          </span>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        {interview.exams && interview.exams.length > 0 ? (
-                          <div className="mt-3">
-                            <p className="text-sm font-medium mb-2">Required Assessments:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {interview.exams.map((exam) => (
-                                <div key={exam.id} className="flex items-center gap-1">
-                                  <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(exam.difficulty)}`}>
-                                    {exam.title}
-                                  </span>
-                                  <span className={`text-xs px-2 py-1 rounded-full ${getCategoryColor(exam.category)}`}>
-                                    {exam.category}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-                      </CardContent>
-                      <CardFooter>
-                        <Button asChild className="w-full">
-                          <Link to={`/interviews/${interview.id}`}>
-                            Prepare for Interview
-                          </Link>
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
               ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4">No upcoming interviews scheduled.</p>
-                  <p className="text-sm">Your interview invitations will appear here.</p>
+                <div className="text-center p-8 border rounded-lg bg-gray-50">
+                  <AlertCircle className="mx-auto h-10 w-10 text-gray-400 mb-3" />
+                  <h3 className="font-medium text-gray-900 mb-1">No recommendations yet</h3>
+                  <p className="text-gray-600 mb-4">
+                    We're still learning about your preferences. Check back later for personalized job recommendations.
+                  </p>
+                  <Button asChild>
+                    <Link to="/jobs">Browse All Jobs</Link>
+                  </Button>
                 </div>
               )}
             </CardContent>
+            <CardFooter>
+              <Button asChild variant="outline" className="w-full">
+                <Link to="/jobs">View All Available Jobs</Link>
+              </Button>
+            </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>AI Interview Prep</CardTitle>
-            <CardDescription>Practice for your interviews with our AI assistant</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600 mb-4">
-              Get ready for your interviews with our AI-powered practice sessions. Answer common interview questions and receive feedback to improve your responses.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button asChild>
-              <Link to="/ai-interview">Start Practicing</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Complete Your Profile</CardTitle>
-            <CardDescription>Increase your chances of getting hired</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600 mb-4">
-              A complete profile helps employers find you and increases your chances of getting hired. Add your skills, experience, and preferences.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button asChild variant="outline">
-              <Link to="/profile">Update Profile</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
     </div>
   );
 };

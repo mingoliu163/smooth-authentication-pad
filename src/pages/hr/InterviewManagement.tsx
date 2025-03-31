@@ -1,7 +1,16 @@
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -20,52 +29,62 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { PlusCircle, FileText, Calendar, User, RefreshCcw, Book, BookOpen } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { useForm } from "react-hook-form";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Calendar,
+  PlusCircle,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Clock,
+  Book,
+} from "lucide-react";
 
-// Define types for our data
 interface Interview {
   id: string;
-  candidate_name: string;
-  position: string;
   date: string;
-  status: string; // Changed from enum to string to match database type
-  interviewers?: User[];
-  assessments?: Assessment[];
-  exams?: Exam[];
+  candidate_id: string;
+  candidate_name: string;
+  interviewer_id: string | null;
+  interviewer_name: string | null;
+  position: string;
+  status: string;
 }
 
-interface User {
+interface Job {
   id: string;
-  email?: string; // Made optional since profiles table doesn't have email
+  title: string;
+  company: string;
+}
+
+interface Candidate {
+  id: string;
+  email: string;
   first_name: string | null;
   last_name: string | null;
 }
 
-interface Assessment {
+interface Interviewer {
   id: string;
-  title: string;
-  assessmentType: "technical" | "behavioral";
-  status?: "pending" | "in_progress" | "completed" | "canceled";
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
 }
 
 interface Exam {
@@ -75,817 +94,819 @@ interface Exam {
   category: string;
 }
 
-interface InterviewFormValues {
-  candidate_name: string;
-  position: string;
-  date: string;
-  interviewer_ids: string[];
-  exam_id?: string;
-}
-
 const InterviewManagement = () => {
-  const { user } = useAuth();
+  const { user, isAdmin, isHR } = useAuth();
   const [interviews, setInterviews] = useState<Interview[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [availableAssessments, setAvailableAssessments] = useState<Assessment[]>([]);
-  const [availableExams, setAvailableExams] = useState<Exam[]>([]);
-  const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
-  const [selectedAssessment, setSelectedAssessment] = useState<string>("");
-  const [selectedExam, setSelectedExam] = useState<string>("");
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
-  const [isExamModalOpen, setIsExamModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [interviewers, setInterviewers] = useState<Interviewer[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isAssignExamsDialogOpen, setIsAssignExamsDialogOpen] = useState(false);
+  const [deleteInterviewId, setDeleteInterviewId] = useState<string | null>(null);
 
-  const form = useForm<InterviewFormValues>({
-    defaultValues: {
-      candidate_name: "",
-      position: "",
-      date: "",
-      interviewer_ids: [],
-      exam_id: undefined,
-    },
+  const [editInterview, setEditInterview] = useState<Interview | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const [selectedInterviewId, setSelectedInterviewId] = useState<string | null>(null);
+  const [selectedExams, setSelectedExams] = useState<string[]>([]);
+  const [availableExams, setAvailableExams] = useState<Exam[]>([]);
+
+  const [newInterview, setNewInterview] = useState({
+    date: "",
+    candidate_id: "",
+    interviewer_id: "",
+    position: "",
+    status: "Scheduled",
   });
 
-  // Fetch interviews, users, assessments and exams from the database
-  useEffect(() => {
-    fetchInterviews();
-    fetchUsers();
-    fetchAssessments();
-    fetchExams();
-  }, []);
-
-  const fetchInterviews = async () => {
+  const fetchData = async () => {
     try {
       setIsLoading(true);
-      console.log("Fetching interviews...");
-      
-      // Fetch interviews
+
+      // Fetch jobs
+      const { data: jobsData, error: jobsError } = await supabase
+        .from("jobs")
+        .select("id, title, company");
+
+      if (jobsError) throw jobsError;
+
+      // Fetch interviews with candidate and interviewer names
       const { data: interviewsData, error: interviewsError } = await supabase
-        .from('interviews')
-        .select('*')
-        .order('date', { ascending: true });
-      
-      if (interviewsError) {
-        console.error("Error fetching interviews:", interviewsError);
-        throw interviewsError;
-      }
-      
-      console.log("Interviews data:", interviewsData);
-      
-      // For each interview, fetch its interviewers and exams
-      const interviewsWithDetails = await Promise.all(
-        interviewsData.map(async (interview) => {
-          // Fetch interviewers
-          const { data: interviewersData, error: interviewersError } = await supabase
-            .from('interview_interviewers')
-            .select('user_id')
-            .eq('interview_id', interview.id);
-          
-          if (interviewersError) {
-            console.error("Error fetching interviewers:", interviewersError);
-            throw interviewersError;
-          }
-          
-          console.log(`Interviewers for interview ${interview.id}:`, interviewersData);
-          
-          // Get full user data for each interviewer
-          const userIds = interviewersData.map(item => item.user_id);
-          let interviewers: User[] = [];
-          
-          if (userIds.length > 0) {
-            const { data: usersData, error: usersError } = await supabase
-              .from('profiles')
-              .select('id, first_name, last_name')
-              .in('id', userIds);
-            
-            if (usersError) {
-              console.error("Error fetching user profiles:", usersError);
-              throw usersError;
-            }
-            
-            console.log("Found user profiles:", usersData);
-            interviewers = usersData as User[];
-          }
-          
-          // Fetch assigned exams
-          const { data: examsData, error: examsError } = await supabase
-            .from('interview_exams')
-            .select('exam_id')
-            .eq('interview_id', interview.id);
-            
-          if (examsError) {
-            console.error("Error fetching exam assignments:", examsError);
-            return {
-              ...interview,
-              interviewers,
-              exams: [],
-            } as Interview;
-          }
-            
-          // Get full exam data
-          let exams: Exam[] = [];
-          if (examsData && examsData.length > 0) {
-            const examIds = examsData.map(item => item.exam_id);
-            const { data: examDetails, error: examDetailsError } = await supabase
-              .from('exam_bank')
-              .select('id, title, difficulty, category')
-              .in('id', examIds);
-              
-            if (!examDetailsError && examDetails) {
-              exams = examDetails as Exam[];
-            } else if (examDetailsError) {
-              console.error("Error fetching exam details:", examDetailsError);
-            }
-          }
-          
-          return {
-            ...interview,
-            interviewers,
-            exams,
-          } as Interview;
-        })
-      );
-      
-      console.log("Interviews with details:", interviewsWithDetails);
-      setInterviews(interviewsWithDetails);
-    } catch (error) {
-      console.error("Error fetching interviews:", error);
-      toast.error("Failed to load interviews");
+        .from("interviews")
+        .select(`
+          *,
+          candidates:candidate_id (email, first_name, last_name),
+          interviewers:interviewer_id (email, first_name, last_name)
+        `)
+        .order("date", { ascending: false });
+
+      if (interviewsError) throw interviewsError;
+
+      // Fetch candidates (job seekers)
+      const { data: candidatesData, error: candidatesError } = await supabase
+        .from("profiles")
+        .select("id, email, first_name, last_name")
+        .eq("role", "job_seeker");
+
+      if (candidatesError) throw candidatesError;
+
+      // Fetch potential interviewers (HR and admin users)
+      const { data: interviewersData, error: interviewersError } = await supabase
+        .from("profiles")
+        .select("id, email, first_name, last_name")
+        .or("role.eq.hr,role.eq.admin")
+        .eq("approved", true);
+
+      if (interviewersError) throw interviewersError;
+
+      // Fetch all available exams
+      const { data: examsData, error: examsError } = await supabase
+        .from("exam_bank")
+        .select("id, title, difficulty, category");
+
+      if (examsError) throw examsError;
+
+      // Format the interviews data
+      const formattedInterviews: Interview[] = interviewsData.map((interview: any) => ({
+        id: interview.id,
+        date: interview.date,
+        candidate_id: interview.candidate_id,
+        candidate_name: interview.candidates
+          ? `${interview.candidates.first_name || ""} ${
+              interview.candidates.last_name || ""
+            }`.trim() || interview.candidates.email
+          : "Unknown",
+        interviewer_id: interview.interviewer_id,
+        interviewer_name: interview.interviewers
+          ? `${interview.interviewers.first_name || ""} ${
+              interview.interviewers.last_name || ""
+            }`.trim() || interview.interviewers.email
+          : null,
+        position: interview.position,
+        status: interview.status,
+      }));
+
+      setJobs(jobsData || []);
+      setInterviews(formattedInterviews);
+      setCandidates(candidatesData || []);
+      setInterviewers(interviewersData || []);
+      setExams(examsData || []);
+    } catch (error: any) {
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load interview data");
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
-  const fetchUsers = async () => {
+  useEffect(() => {
+    if (!(isAdmin() || isHR())) {
+      return;
+    }
+    fetchData();
+  }, [isAdmin, isHR, user?.id]);
+
+  const handleCreateInterview = async () => {
     try {
-      console.log("Fetching users...");
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name, role')
-        .or('role.eq.hr,role.eq.admin');
-      
-      if (error) {
-        console.error("Error fetching users:", error);
-        throw error;
+      setIsSubmitting(true);
+
+      if (!newInterview.candidate_id) {
+        toast.error("Please select a candidate");
+        return;
       }
+
+      if (!newInterview.date) {
+        toast.error("Please set an interview date");
+        return;
+      }
+
+      if (!newInterview.position) {
+        toast.error("Please enter a position title");
+        return;
+      }
+
+      // Get candidate information for notification
+      const candidate = candidates.find(c => c.id === newInterview.candidate_id);
+      const candidateName = candidate 
+        ? `${candidate.first_name || ""} ${candidate.last_name || ""}`.trim() || candidate.email
+        : "the candidate";
+
+      // Create the interview
+      const { data, error } = await supabase
+        .from("interviews")
+        .insert({
+          date: newInterview.date,
+          candidate_id: newInterview.candidate_id,
+          interviewer_id: newInterview.interviewer_id || null,
+          position: newInterview.position,
+          status: newInterview.status,
+        })
+        .select();
+
+      if (error) throw error;
+
+      toast.success(`Interview scheduled for ${candidateName}`);
       
-      console.log("Users data:", data);
-      setUsers(data as User[]);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      toast.error("Failed to load users");
+      // Reset the form
+      setNewInterview({
+        date: "",
+        candidate_id: "",
+        interviewer_id: "",
+        position: "",
+        status: "Scheduled",
+      });
+      
+      // Refresh the interviews list
+      fetchData();
+    } catch (error: any) {
+      console.error("Error creating interview:", error);
+      toast.error(error.message || "Failed to create interview");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const fetchAssessments = async () => {
+  const handleUpdateInterview = async () => {
     try {
-      console.log("Fetching assessments...");
+      setIsSubmitting(true);
+
+      if (!editInterview) return;
+
       const { data, error } = await supabase
-        .from('assessments')
-        .select('id, title, assessment_type');
-      
-      if (error) {
-        console.error("Error fetching assessments:", error);
-        throw error;
-      }
-      
-      console.log("Assessments data:", data);
-      
-      if (data) {
-        setAvailableAssessments(data.map(item => ({
-          id: item.id,
-          title: item.title,
-          assessmentType: item.assessment_type as "technical" | "behavioral"
-        })));
-      }
-    } catch (error) {
-      console.error("Error fetching assessments:", error);
-      toast.error("Failed to load assessments");
+        .from("interviews")
+        .update({
+          date: editInterview.date,
+          candidate_id: editInterview.candidate_id,
+          interviewer_id: editInterview.interviewer_id,
+          position: editInterview.position,
+          status: editInterview.status,
+        })
+        .eq("id", editInterview.id)
+        .select();
+
+      if (error) throw error;
+
+      toast.success("Interview updated successfully");
+      setIsEditDialogOpen(false);
+      fetchData();
+    } catch (error: any) {
+      console.error("Error updating interview:", error);
+      toast.error(error.message || "Failed to update interview");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const fetchExams = async () => {
+  const handleDeleteInterview = async () => {
     try {
-      console.log("Fetching exams...");
-      const { data, error } = await supabase
-        .from('exam_bank')
-        .select('id, title, difficulty, category');
-      
-      if (error) {
-        console.error("Error fetching exams:", error);
-        throw error;
+      setIsSubmitting(true);
+
+      if (!deleteInterviewId) return;
+
+      // First remove any exam assignments
+      const { error: examLinkError } = await supabase
+        .from("interview_exams")
+        .delete()
+        .eq("interview_id", deleteInterviewId);
+
+      if (examLinkError) throw examLinkError;
+
+      // Then delete the interview
+      const { error } = await supabase
+        .from("interviews")
+        .delete()
+        .eq("id", deleteInterviewId);
+
+      if (error) throw error;
+
+      toast.success("Interview deleted successfully");
+      setIsDeleteDialogOpen(false);
+      setDeleteInterviewId(null);
+      fetchData();
+    } catch (error: any) {
+      console.error("Error deleting interview:", error);
+      toast.error(error.message || "Failed to delete interview");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenAssignExamsDialog = async (interviewId: string) => {
+    try {
+      // Fetch already assigned exams for this interview
+      const { data: assignedExams, error: assignedError } = await supabase
+        .from("interview_exams")
+        .select("exam_id")
+        .eq("interview_id", interviewId);
+
+      if (assignedError) throw assignedError;
+
+      const assignedExamIds = assignedExams?.map((item) => item.exam_id) || [];
+      setSelectedExams(assignedExamIds);
+      setSelectedInterviewId(interviewId);
+      setAvailableExams(exams);
+      setIsAssignExamsDialogOpen(true);
+    } catch (error: any) {
+      console.error("Error fetching assigned exams:", error);
+      toast.error("Failed to load exam assignments");
+    }
+  };
+
+  const handleAssignExams = async () => {
+    try {
+      setIsSubmitting(true);
+
+      if (!selectedInterviewId) return;
+
+      // First remove all existing exam assignments
+      const { error: deleteError } = await supabase
+        .from("interview_exams")
+        .delete()
+        .eq("interview_id", selectedInterviewId);
+
+      if (deleteError) throw deleteError;
+
+      // Then add the new assignments
+      if (selectedExams.length > 0) {
+        const examAssignments = selectedExams.map((examId) => ({
+          interview_id: selectedInterviewId,
+          exam_id: examId,
+        }));
+
+        const { error: insertError } = await supabase
+          .from("interview_exams")
+          .insert(examAssignments);
+
+        if (insertError) throw insertError;
       }
-      
-      console.log("Exams data:", data);
-      
-      if (data) {
-        setAvailableExams(data as Exam[]);
-      }
-    } catch (error) {
-      console.error("Error fetching exams:", error);
-      toast.error("Failed to load exams");
+
+      toast.success("Exams assigned successfully");
+      setIsAssignExamsDialogOpen(false);
+      setSelectedInterviewId(null);
+      setSelectedExams([]);
+    } catch (error: any) {
+      console.error("Error assigning exams:", error);
+      toast.error(error.message || "Failed to assign exams");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(dateString).toLocaleString();
   };
 
-  const handleScheduleInterview = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Get values from form
-      const values = form.getValues();
-      console.log("Scheduling interview with values:", values);
-      
-      // Insert the interview
-      const { data: interview, error: insertError } = await supabase
-        .from('interviews')
-        .insert({
-          candidate_name: values.candidate_name,
-          position: values.position,
-          date: values.date,
-          status: 'Scheduled'
-        })
-        .select()
-        .single();
-      
-      if (insertError) {
-        console.error("Error inserting interview:", insertError);
-        throw insertError;
-      }
-      
-      console.log("Interview created:", interview);
-      
-      // Insert the interviewers
-      if (values.interviewer_ids.length > 0) {
-        const interviewerInserts = values.interviewer_ids.map(user_id => ({
-          interview_id: interview.id,
-          user_id
-        }));
-        
-        console.log("Inserting interviewers:", interviewerInserts);
-        
-        const { error: interviewersError } = await supabase
-          .from('interview_interviewers')
-          .insert(interviewerInserts);
-        
-        if (interviewersError) {
-          console.error("Error inserting interviewers:", interviewersError);
-          throw interviewersError;
-        }
-      }
-      
-      // Assign exam if selected
-      if (values.exam_id) {
-        console.log("Assigning exam:", values.exam_id, "to interview:", interview.id);
-        
-        const { error: examError } = await supabase
-          .from('interview_exams')
-          .insert({
-            interview_id: interview.id,
-            exam_id: values.exam_id
-          });
-        
-        if (examError) {
-          console.error("Error assigning exam:", examError);
-          toast.error("Interview scheduled but exam assignment failed");
-        }
-      }
-      
-      toast.success("Interview scheduled successfully");
-      setIsScheduleModalOpen(false);
-      form.reset();
-      fetchInterviews();
-    } catch (error) {
-      console.error("Error scheduling interview:", error);
-      toast.error("Failed to schedule interview");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAddAssessment = () => {
-    if (selectedInterview && selectedAssessment) {
-      // In a real app, we would call the API to link the assessment to the interview
-      // For now, we're just updating the UI
-      const updatedInterviews = interviews.map(interview => {
-        if (interview.id === selectedInterview.id) {
-          const assessment = availableAssessments.find(a => a.id === selectedAssessment);
-          if (assessment) {
-            const newAssessment: Assessment = {
-              id: assessment.id,
-              title: assessment.title,
-              assessmentType: assessment.assessmentType,
-              status: "pending"
-            };
-            
-            return {
-              ...interview,
-              assessments: [
-                ...(interview.assessments || []),
-                newAssessment
-              ]
-            };
-          }
-        }
-        return interview;
-      });
-      
-      setInterviews(updatedInterviews);
-      toast.success("Assessment added to interview");
-      setIsAssessmentModalOpen(false);
-      setSelectedAssessment("");
-    } else {
-      toast.error("Please select an assessment");
-    }
-  };
-
-  const handleAddExam = async () => {
-    if (selectedInterview && selectedExam) {
-      try {
-        console.log("Adding exam:", selectedExam, "to interview:", selectedInterview.id);
-        
-        const { error } = await supabase
-          .from('interview_exams')
-          .insert({
-            interview_id: selectedInterview.id,
-            exam_id: selectedExam
-          });
-          
-        if (error) {
-          console.error("Error assigning exam:", error);
-          throw error;
-        }
-        
-        // Update local state
-        const updatedInterviews = interviews.map(interview => {
-          if (interview.id === selectedInterview.id) {
-            const exam = availableExams.find(e => e.id === selectedExam);
-            if (exam) {
-              return {
-                ...interview,
-                exams: [
-                  ...(interview.exams || []),
-                  exam
-                ]
-              };
-            }
-          }
-          return interview;
-        });
-        
-        setInterviews(updatedInterviews);
-        toast.success("Exam assigned to interview");
-        setIsExamModalOpen(false);
-        setSelectedExam("");
-      } catch (error) {
-        console.error("Error assigning exam:", error);
-        toast.error("Failed to assign exam");
-      }
-    } else {
-      toast.error("Please select an exam");
-    }
-  };
-
-  const openAssessmentModal = (interview: Interview) => {
-    setSelectedInterview(interview);
-    setIsAssessmentModalOpen(true);
-  };
-
-  const openExamModal = (interview: Interview) => {
-    setSelectedInterview(interview);
-    setIsExamModalOpen(true);
-  };
-
-  const refreshData = () => {
-    setIsRefreshing(true);
-    fetchInterviews();
-  };
-
-  const getUserFullName = (user: User) => {
-    if (user.first_name && user.last_name) {
-      return `${user.first_name} ${user.last_name}`;
-    } else if (user.first_name) {
-      return user.first_name;
-    } else if (user.email) {
-      return user.email;
-    } else {
-      return `User ${user.id.slice(0, 8)}`;
-    }
-  };
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'Beginner': return 'bg-green-100 text-green-800';
-      case 'Intermediate': return 'bg-blue-100 text-blue-800';
-      case 'Advanced': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'Technical': return 'bg-indigo-100 text-indigo-800';
-      case 'Behavioral': return 'bg-amber-100 text-amber-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  const getFullName = (firstName: string | null, lastName: string | null, email: string) => {
+    const name = `${firstName || ""} ${lastName || ""}`.trim();
+    return name || email;
   };
 
   return (
     <AdminLayout>
-      <div className="container mx-auto py-8">
-        <div className="flex justify-between items-center mb-6">
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Interview Management</h1>
-          <div className="flex space-x-2">
-            <Dialog open={isScheduleModalOpen} onOpenChange={setIsScheduleModalOpen}>
-              <DialogTrigger asChild>
-                <Button className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Schedule Interview
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Schedule New Interview</DialogTitle>
-                  <DialogDescription>
-                    Fill in the details to schedule a new interview.
-                  </DialogDescription>
-                </DialogHeader>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(handleScheduleInterview)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="candidate_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Candidate Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter candidate name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="position"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Position</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter position" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="date"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Date & Time</FormLabel>
-                          <FormControl>
-                            <Input type="datetime-local" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="interviewer_ids"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Interviewers</FormLabel>
-                          <Select
-                            onValueChange={(value) => field.onChange([...field.value, value])}
-                            value=""
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select interviewers" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {users.length === 0 ? (
-                                <div className="p-2 text-sm text-gray-500">No interviewers available</div>
-                              ) : (
-                                users.map((user) => (
-                                  <SelectItem 
-                                    key={user.id} 
-                                    value={user.id}
-                                    disabled={field.value.includes(user.id)}
-                                  >
-                                    {getUserFullName(user)}
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-                          {field.value.length > 0 && (
-                            <div className="mt-2">
-                              <p className="text-sm font-medium mb-1">Selected interviewers:</p>
-                              <div className="flex flex-wrap gap-2">
-                                {field.value.map((userId) => {
-                                  const selectedUser = users.find(u => u.id === userId);
-                                  return (
-                                    <div 
-                                      key={userId} 
-                                      className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs"
-                                    >
-                                      <span>{selectedUser ? getUserFullName(selectedUser) : userId}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => field.onChange(field.value.filter(id => id !== userId))}
-                                        className="text-gray-500 hover:text-red-500"
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Schedule Interview
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Schedule New Interview</DialogTitle>
+                <DialogDescription>
+                  Create a new interview session and assign a candidate and interviewer.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="position" className="text-right">
+                    Position
+                  </Label>
+                  <Input
+                    id="position"
+                    value={newInterview.position}
+                    onChange={(e) =>
+                      setNewInterview({
+                        ...newInterview,
+                        position: e.target.value,
+                      })
+                    }
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="candidate" className="text-right">
+                    Candidate
+                  </Label>
+                  <Select
+                    value={newInterview.candidate_id}
+                    onValueChange={(value) =>
+                      setNewInterview({
+                        ...newInterview,
+                        candidate_id: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select candidate" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {candidates.map((candidate) => (
+                        <SelectItem key={candidate.id} value={candidate.id}>
+                          {getFullName(
+                            candidate.first_name,
+                            candidate.last_name,
+                            candidate.email
                           )}
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="exam_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Assign Exam (Optional)</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="interviewer" className="text-right">
+                    Interviewer
+                  </Label>
+                  <Select
+                    value={newInterview.interviewer_id}
+                    onValueChange={(value) =>
+                      setNewInterview({
+                        ...newInterview,
+                        interviewer_id: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select interviewer (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {interviewers.map((interviewer) => (
+                        <SelectItem key={interviewer.id} value={interviewer.id}>
+                          {getFullName(
+                            interviewer.first_name,
+                            interviewer.last_name,
+                            interviewer.email
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="date" className="text-right">
+                    Date & Time
+                  </Label>
+                  <Input
+                    id="date"
+                    type="datetime-local"
+                    value={newInterview.date}
+                    onChange={(e) =>
+                      setNewInterview({
+                        ...newInterview,
+                        date: e.target.value,
+                      })
+                    }
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="status" className="text-right">
+                    Status
+                  </Label>
+                  <Select
+                    value={newInterview.status}
+                    onValueChange={(value) =>
+                      setNewInterview({
+                        ...newInterview,
+                        status: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Scheduled">Scheduled</SelectItem>
+                      <SelectItem value="Completed">Completed</SelectItem>
+                      <SelectItem value="Cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  onClick={handleCreateInterview}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Scheduling..." : "Schedule Interview"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>All Interviews</CardTitle>
+            <CardDescription>
+              View and manage all scheduled interviews
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center p-8">
+                <div className="w-8 h-8 border-t-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+              </div>
+            ) : interviews.length === 0 ? (
+              <div className="text-center p-8 border rounded-lg bg-gray-50">
+                <Calendar className="mx-auto h-10 w-10 text-gray-400 mb-2" />
+                <h3 className="text-lg font-medium">No interviews scheduled</h3>
+                <p className="text-gray-600 mb-4">
+                  Schedule your first interview to get started
+                </p>
+                <DialogTrigger asChild>
+                  <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Schedule Interview
+                  </Button>
+                </DialogTrigger>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Position</TableHead>
+                      <TableHead>Candidate</TableHead>
+                      <TableHead>Interviewer</TableHead>
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {interviews.map((interview) => (
+                      <TableRow key={interview.id}>
+                        <TableCell className="font-medium">
+                          {interview.position}
+                        </TableCell>
+                        <TableCell>{interview.candidate_name}</TableCell>
+                        <TableCell>
+                          {interview.interviewer_name || "Not assigned"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center">
+                            <Clock className="mr-2 h-4 w-4 text-gray-500" />
+                            {formatDate(interview.date)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              interview.status === "Scheduled"
+                                ? "bg-blue-100 text-blue-800"
+                                : interview.status === "Completed"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
                           >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select an exam" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {availableExams.length === 0 ? (
-                                <div className="p-2 text-sm text-gray-500">No exams available</div>
-                              ) : (
-                                availableExams.map((exam) => (
-                                  <SelectItem 
-                                    key={exam.id} 
-                                    value={exam.id}
-                                  >
-                                    {exam.title} ({exam.category}, {exam.difficulty})
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <DialogFooter>
-                      <Button type="submit" disabled={isLoading}>
-                        {isLoading ? "Scheduling..." : "Schedule"}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
-            
-            <Button variant="outline" onClick={refreshData} disabled={isRefreshing}>
-              <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          {isLoading && !isRefreshing ? (
-            <div className="p-8 text-center">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary mb-4"></div>
-              <p>Loading interviews...</p>
-            </div>
-          ) : interviews.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-gray-500">No interviews found. Schedule your first interview!</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Candidate</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead>Date & Time</TableHead>
-                  <TableHead>Interviewers</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Assessments</TableHead>
-                  <TableHead>Exams</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {interviews.map((interview) => (
-                  <TableRow key={interview.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        {interview.candidate_name}
-                      </div>
-                    </TableCell>
-                    <TableCell>{interview.position}</TableCell>
-                    <TableCell>{formatDate(interview.date)}</TableCell>
-                    <TableCell>
-                      {interview.interviewers && interview.interviewers.length > 0 ? (
-                        <div className="flex flex-col gap-1">
-                          {interview.interviewers.map((interviewer, idx) => (
-                            <div key={idx} className="flex items-center gap-1">
-                              <User className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs">
-                                {getUserFullName(interviewer)}
+                            {interview.status}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenAssignExamsDialog(interview.id)}
+                            >
+                              <Book className="h-4 w-4" />
+                              <span className="sr-only md:not-sr-only md:ml-2">
+                                Exams
                               </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-500">No interviewers assigned</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        interview.status === "Scheduled" ? "bg-blue-100 text-blue-800" : 
-                        interview.status === "Completed" ? "bg-green-100 text-green-800" : 
-                        interview.status === "In Progress" ? "bg-yellow-100 text-yellow-800" :
-                        "bg-gray-100 text-gray-800"
-                      }`}>
-                        {interview.status}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        {interview.assessments && interview.assessments.length > 0 ? (
-                          interview.assessments.map((assessment, index) => (
-                            <div key={index} className="flex items-center gap-1">
-                              <FileText className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs">{assessment.title}</span>
-                              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${
-                                assessment.status === "completed" ? "bg-green-100 text-green-800" :
-                                assessment.status === "in_progress" ? "bg-yellow-100 text-yellow-800" :
-                                "bg-blue-100 text-blue-800"
-                              }`}>
-                                {assessment.status}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-500">No assessments</span>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="mt-1 h-6 text-xs"
-                          onClick={() => openAssessmentModal(interview)}
-                        >
-                          <PlusCircle className="h-3 w-3 mr-1" />
-                          Add Assessment
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        {interview.exams && interview.exams.length > 0 ? (
-                          interview.exams.map((exam, index) => (
-                            <div key={index} className="flex items-center gap-1">
-                              <BookOpen className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs">{exam.title}</span>
-                              <div className="flex gap-1 ml-1">
-                                <span className={`px-1.5 py-0.5 rounded-full text-xs ${getDifficultyColor(exam.difficulty)}`}>
-                                  {exam.difficulty}
-                                </span>
-                                <span className={`px-1.5 py-0.5 rounded-full text-xs ${getCategoryColor(exam.category)}`}>
-                                  {exam.category}
-                                </span>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-500">No exams</span>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="mt-1 h-6 text-xs"
-                          onClick={() => openExamModal(interview)}
-                        >
-                          <PlusCircle className="h-3 w-3 mr-1" />
-                          Add Exam
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm">View</Button>
-                        <Button variant="outline" size="sm">Edit</Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setEditInterview(interview);
+                                    setIsEditDialogOpen(true);
+                                  }}
+                                >
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => {
+                                    setDeleteInterviewId(interview.id);
+                                    setIsDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Assessment Assignment Modal */}
-      <Dialog open={isAssessmentModalOpen} onOpenChange={setIsAssessmentModalOpen}>
-        <DialogContent>
+      {/* Edit Interview Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Add Assessment to Interview</DialogTitle>
+            <DialogTitle>Edit Interview</DialogTitle>
             <DialogDescription>
-              {selectedInterview && (
-                <>Assign an assessment to {selectedInterview.candidate_name}'s interview.</>
-              )}
+              Update the interview details and assignments
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="assessment">Select Assessment</Label>
-              <Select 
-                value={selectedAssessment} 
-                onValueChange={setSelectedAssessment}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an assessment" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableAssessments.length === 0 ? (
-                    <div className="p-2 text-sm text-gray-500">No assessments available</div>
-                  ) : (
-                    availableAssessments.map((assessment) => (
-                      <SelectItem key={assessment.id} value={assessment.id}>
-                        {assessment.title} ({assessment.assessmentType})
+          {editInterview && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-position" className="text-right">
+                  Position
+                </Label>
+                <Input
+                  id="edit-position"
+                  value={editInterview.position}
+                  onChange={(e) =>
+                    setEditInterview({
+                      ...editInterview,
+                      position: e.target.value,
+                    })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-candidate" className="text-right">
+                  Candidate
+                </Label>
+                <Select
+                  value={editInterview.candidate_id}
+                  onValueChange={(value) =>
+                    setEditInterview({
+                      ...editInterview,
+                      candidate_id: value,
+                    })
+                  }
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select candidate" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {candidates.map((candidate) => (
+                      <SelectItem key={candidate.id} value={candidate.id}>
+                        {getFullName(
+                          candidate.first_name,
+                          candidate.last_name,
+                          candidate.email
+                        )}
                       </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-interviewer" className="text-right">
+                  Interviewer
+                </Label>
+                <Select
+                  value={editInterview.interviewer_id || ""}
+                  onValueChange={(value) =>
+                    setEditInterview({
+                      ...editInterview,
+                      interviewer_id: value || null,
+                    })
+                  }
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select interviewer (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {interviewers.map((interviewer) => (
+                      <SelectItem key={interviewer.id} value={interviewer.id}>
+                        {getFullName(
+                          interviewer.first_name,
+                          interviewer.last_name,
+                          interviewer.email
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-date" className="text-right">
+                  Date & Time
+                </Label>
+                <Input
+                  id="edit-date"
+                  type="datetime-local"
+                  value={editInterview.date}
+                  onChange={(e) =>
+                    setEditInterview({
+                      ...editInterview,
+                      date: e.target.value,
+                    })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-status" className="text-right">
+                  Status
+                </Label>
+                <Select
+                  value={editInterview.status}
+                  onValueChange={(value) =>
+                    setEditInterview({
+                      ...editInterview,
+                      status: value,
+                    })
+                  }
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Scheduled">Scheduled</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
+          )}
           <DialogFooter>
-            <Button onClick={handleAddAssessment} disabled={!selectedAssessment}>
-              Assign Assessment
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={handleUpdateInterview}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Updating..." : "Update Interview"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Exam Assignment Modal */}
-      <Dialog open={isExamModalOpen} onOpenChange={setIsExamModalOpen}>
-        <DialogContent>
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add Exam to Interview</DialogTitle>
+            <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              {selectedInterview && (
-                <>Assign an exam to {selectedInterview.candidate_name}'s interview.</>
-              )}
+              Are you sure you want to delete this interview? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="exam">Select Exam</Label>
-              <Select 
-                value={selectedExam} 
-                onValueChange={setSelectedExam}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an exam" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableExams.length === 0 ? (
-                    <div className="p-2 text-sm text-gray-500">No exams available</div>
-                  ) : (
-                    availableExams.map((exam) => (
-                      <SelectItem key={exam.id} value={exam.id}>
-                        {exam.title} ({exam.category}, {exam.difficulty})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+          <div className="flex items-center justify-end space-x-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteInterview}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Deleting..." : "Delete Interview"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Exams Dialog */}
+      <Dialog open={isAssignExamsDialogOpen} onOpenChange={setIsAssignExamsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Assign Assessment Exams</DialogTitle>
+            <DialogDescription>
+              Select exams to assign to this interview. The candidate will be able to
+              complete these assessments when they log in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-4">
+              {availableExams.map((exam) => (
+                <div key={exam.id} className="flex items-start space-x-3 p-2 border rounded-md">
+                  <Checkbox
+                    id={exam.id}
+                    checked={selectedExams.includes(exam.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedExams([...selectedExams, exam.id]);
+                      } else {
+                        setSelectedExams(selectedExams.filter((id) => id !== exam.id));
+                      }
+                    }}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor={exam.id} className="font-medium">
+                      {exam.title}
+                    </Label>
+                    <div className="flex space-x-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        exam.difficulty === "Beginner" ? "bg-green-100 text-green-800" :
+                        exam.difficulty === "Intermediate" ? "bg-blue-100 text-blue-800" :
+                        "bg-purple-100 text-purple-800"
+                      }`}>
+                        {exam.difficulty}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        exam.category === "Technical" ? "bg-indigo-100 text-indigo-800" :
+                        "bg-amber-100 text-amber-800"
+                      }`}>
+                        {exam.category}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleAddExam} disabled={!selectedExam}>
-              Assign Exam
+            <Button
+              variant="outline"
+              onClick={() => setIsAssignExamsDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={handleAssignExams}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Assigning..." : "Assign Exams"}
             </Button>
           </DialogFooter>
         </DialogContent>

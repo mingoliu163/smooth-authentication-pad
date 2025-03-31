@@ -25,10 +25,11 @@ import JobManagement from "./pages/hr/JobManagement";
 import InterviewManagement from "./pages/hr/InterviewManagement";
 import AssessmentManagement from "./pages/hr/AssessmentManagement";
 import AssessmentEditor from "./pages/hr/AssessmentEditor";
-import ExamBank from "./pages/hr/ExamBank";  // Import the ExamBank page
+import ExamBank from "./pages/hr/ExamBank";
 
 // JobSeeker pages
 import JobSeekerDashboard from "./pages/jobseeker/JobSeekerDashboard";
+import InterviewDetail from "./pages/interviews/InterviewDetail";
 
 // Optional: Create placeholder pages that we'll implement later
 const Questionnaires = () => <div className="p-8">Questionnaires (To be implemented)</div>;
@@ -108,6 +109,13 @@ const App = () => (
             <Route path="/dashboard" element={
               <ProtectedRoute allowedRoles={['job_seeker']}>
                 <JobSeekerDashboard />
+              </ProtectedRoute>
+            } />
+            
+            {/* Interview Routes - accessible to job seekers */}
+            <Route path="/interviews/:id" element={
+              <ProtectedRoute>
+                <InterviewDetail />
               </ProtectedRoute>
             } />
             

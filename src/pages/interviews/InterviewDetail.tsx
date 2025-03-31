@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ArrowLeft, Send, CalendarIcon, Clock, RefreshCw, CheckCircle2, BookOpen, Robot } from "lucide-react";
+import { ArrowLeft, Send, CalendarIcon, Clock, RefreshCw, CheckCircle2, BookOpen, Bot } from "lucide-react";
 
 interface Interview {
   id: string;
@@ -423,7 +422,7 @@ Let's begin with your first question: Could you tell me about yourself and what 
                 
                 <CardFooter className="flex justify-between border-t pt-4">
                   <p className="text-xs text-gray-500">
-                    <Robot className="h-3 w-3 inline-block mr-1" />
+                    <Bot className="h-3 w-3 inline-block mr-1" />
                     AI responses are generated for practice purposes only
                   </p>
                   <Button variant="outline" size="sm" onClick={() => handleSelectExam(selectedExam)}>

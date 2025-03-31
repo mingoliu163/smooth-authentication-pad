@@ -1,271 +1,206 @@
 
 import { useState } from "react";
-import { toast } from "sonner";
+import { useForm } from "react-hook-form";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { PlusCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { CalendarIcon, Plus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 interface InterviewFormDialogProps {
-  candidates: Candidate[];
-  interviewers: Interviewer[];
-  onSuccess: () => void;
-  trigger?: React.ReactNode;
+  onInterviewCreated: () => void;
+  candidates: Array<{
+    id: string;
+    name: string;
+    email: string;
+  }>;
 }
 
-interface Candidate {
-  id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
+interface InterviewFormValues {
+  candidate_name: string;
+  position: string;
+  date: Date;
 }
 
-interface Interviewer {
-  id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-}
-
-export const InterviewFormDialog = ({
-  candidates,
-  interviewers,
-  onSuccess,
-  trigger,
+export const InterviewFormDialog = ({ 
+  onInterviewCreated, 
+  candidates 
 }: InterviewFormDialogProps) => {
+  const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newInterview, setNewInterview] = useState({
-    date: "",
-    candidate_id: "",
-    interviewer_id: "",
-    position: "",
-    status: "Scheduled",
+
+  const form = useForm<InterviewFormValues>({
+    defaultValues: {
+      candidate_name: '',
+      position: '',
+      date: new Date(),
+    },
   });
 
-  const handleCreateInterview = async () => {
+  const onSubmit = async (data: InterviewFormValues) => {
     try {
       setIsSubmitting(true);
 
-      if (!newInterview.candidate_id) {
-        toast.error("Please select a candidate");
-        return;
-      }
+      // Format date for Supabase
+      const formattedDate = data.date.toISOString();
 
-      if (!newInterview.date) {
-        toast.error("Please set an interview date");
-        return;
-      }
-
-      if (!newInterview.position) {
-        toast.error("Please enter a position title");
-        return;
-      }
-
-      // Get candidate information for notification
-      const candidate = candidates.find(c => c.id === newInterview.candidate_id);
-      const candidateName = candidate 
-        ? `${candidate.first_name || ""} ${candidate.last_name || ""}`.trim() || candidate.email
-        : "the candidate";
-
-      // Create the interview
-      const { data, error } = await supabase
-        .from("interviews")
+      // Insert new interview
+      const { error } = await supabase
+        .from('interviews')
         .insert({
-          date: newInterview.date,
-          candidate_id: newInterview.candidate_id,
-          interviewer_id: newInterview.interviewer_id || null,
-          position: newInterview.position,
-          status: newInterview.status,
-        })
-        .select();
+          candidate_name: data.candidate_name,
+          position: data.position,
+          date: formattedDate,
+          status: 'Scheduled'
+        });
 
       if (error) throw error;
 
-      toast.success(`Interview scheduled for ${candidateName}`);
-      
-      // Reset the form
-      setNewInterview({
-        date: "",
-        candidate_id: "",
-        interviewer_id: "",
-        position: "",
-        status: "Scheduled",
-      });
-      
-      // Refresh the interviews list
-      onSuccess();
+      toast.success('Interview scheduled successfully');
+      form.reset();
+      setOpen(false);
+      onInterviewCreated();
     } catch (error: any) {
-      console.error("Error creating interview:", error);
-      toast.error(error.message || "Failed to create interview");
+      console.error('Error creating interview:', error);
+      toast.error(error.message || 'Failed to schedule interview');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getFullName = (firstName: string | null, lastName: string | null, email: string) => {
-    const name = `${firstName || ""} ${lastName || ""}`.trim();
-    return name || email;
-  };
-
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {trigger || (
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Schedule Interview
-          </Button>
-        )}
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Schedule Interview
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Schedule New Interview</DialogTitle>
-          <DialogDescription>
-            Create a new interview session and assign a candidate and interviewer.
-          </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="position" className="text-right">
-              Position
-            </Label>
-            <Input
-              id="position"
-              value={newInterview.position}
-              onChange={(e) =>
-                setNewInterview({
-                  ...newInterview,
-                  position: e.target.value,
-                })
-              }
-              className="col-span-3"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="candidate_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Candidate</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select candidate" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {candidates.map((candidate) => (
+                        <SelectItem key={candidate.id} value={candidate.name}>
+                          {candidate.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="candidate" className="text-right">
-              Candidate
-            </Label>
-            <Select
-              value={newInterview.candidate_id}
-              onValueChange={(value) =>
-                setNewInterview({
-                  ...newInterview,
-                  candidate_id: value,
-                })
-              }
-            >
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select candidate" />
-              </SelectTrigger>
-              <SelectContent>
-                {candidates.map((candidate) => (
-                  <SelectItem key={candidate.id} value={candidate.id}>
-                    {getFullName(
-                      candidate.first_name,
-                      candidate.last_name,
-                      candidate.email
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="interviewer" className="text-right">
-              Interviewer
-            </Label>
-            <Select
-              value={newInterview.interviewer_id}
-              onValueChange={(value) =>
-                setNewInterview({
-                  ...newInterview,
-                  interviewer_id: value,
-                })
-              }
-            >
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select interviewer (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                {interviewers.map((interviewer) => (
-                  <SelectItem key={interviewer.id} value={interviewer.id}>
-                    {getFullName(
-                      interviewer.first_name,
-                      interviewer.last_name,
-                      interviewer.email
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="date" className="text-right">
-              Date & Time
-            </Label>
-            <Input
-              id="date"
-              type="datetime-local"
-              value={newInterview.date}
-              onChange={(e) =>
-                setNewInterview({
-                  ...newInterview,
-                  date: e.target.value,
-                })
-              }
-              className="col-span-3"
+            <FormField
+              control={form.control}
+              name="position"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Position</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Job position" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="status" className="text-right">
-              Status
-            </Label>
-            <Select
-              value={newInterview.status}
-              onValueChange={(value) =>
-                setNewInterview({
-                  ...newInterview,
-                  status: value,
-                })
-              }
-            >
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Scheduled">Scheduled</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            type="submit"
-            onClick={handleCreateInterview}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Scheduling..." : "Schedule Interview"}
-          </Button>
-        </DialogFooter>
+            <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Interview Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP HH:mm")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        initialFocus
+                      />
+                      <div className="p-3 border-t border-border">
+                        <Input
+                          type="time"
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':');
+                            const newDate = new Date(field.value);
+                            newDate.setHours(parseInt(hours, 10));
+                            newDate.setMinutes(parseInt(minutes, 10));
+                            field.onChange(newDate);
+                          }}
+                          defaultValue={format(field.value, "HH:mm")}
+                        />
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Scheduling...' : 'Schedule Interview'}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

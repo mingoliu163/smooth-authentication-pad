@@ -12,9 +12,8 @@ interface EmptyInterviewStateProps {
   }>;
   interviewers: Array<{
     id: string;
+    name: string;
     email: string;
-    first_name: string | null;
-    last_name: string | null;
   }>;
   onSuccess: () => void;
 }

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,9 +29,8 @@ interface InterviewFormDialogProps {
   }>;
   interviewers: Array<{
     id: string;
+    name: string;
     email: string;
-    first_name: string | null;
-    last_name: string | null;
   }>;
 }
 
@@ -158,7 +156,7 @@ export const InterviewFormDialog = ({
                       <SelectItem value="">None</SelectItem>
                       {interviewers.map((interviewer) => (
                         <SelectItem key={interviewer.id} value={interviewer.id}>
-                          {`${interviewer.first_name || ""} ${interviewer.last_name || ""}`.trim() || interviewer.email}
+                          {interviewer.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

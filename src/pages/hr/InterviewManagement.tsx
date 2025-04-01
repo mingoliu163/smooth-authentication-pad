@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
-import { PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { InterviewFormDialog } from "@/components/interviews/InterviewFormDialog";
@@ -28,6 +27,7 @@ interface Job {
 
 interface Candidate {
   id: string;
+  name: string;
   email: string;
   first_name: string | null;
   last_name: string | null;
@@ -81,20 +81,39 @@ const InterviewManagement = () => {
 
       // Fetch candidates (job seekers)
       const { data: candidatesData, error: candidatesError } = await supabase
-        .from("profiles")
-        .select("id, email, first_name, last_name")
-        .eq("role", "job_seeker");
+        .from("candidates")
+        .select("id, name, email");
 
-      if (candidatesError) throw candidatesError;
+      if (candidatesError) {
+        console.error("Error fetching candidates:", candidatesError);
+        // Set default empty array if there's an error
+        setCandidates([]);
+      } else {
+        // Set candidates data if successful
+        setCandidates(candidatesData || []);
+      }
 
       // Fetch potential interviewers (HR and admin users)
       const { data: interviewersData, error: interviewersError } = await supabase
         .from("profiles")
-        .select("id, email, first_name, last_name")
+        .select("id, first_name, last_name")
         .or("role.eq.hr,role.eq.admin")
         .eq("approved", true);
 
-      if (interviewersError) throw interviewersError;
+      if (interviewersError) {
+        console.error("Error fetching interviewers:", interviewersError);
+        // Set default empty array if there's an error
+        setInterviewers([]);
+      } else {
+        // Format interviewers data to include email (even though we don't have it from profiles)
+        const formattedInterviewers: Interviewer[] = (interviewersData || []).map(interviewer => ({
+          id: interviewer.id,
+          email: "", // Since we don't have email in profiles, setting to empty string
+          first_name: interviewer.first_name,
+          last_name: interviewer.last_name
+        }));
+        setInterviewers(formattedInterviewers);
+      }
 
       // Fetch all available exams
       const { data: examsData, error: examsError } = await supabase
@@ -112,7 +131,7 @@ const InterviewManagement = () => {
           ? `${interview.candidates.first_name || ""} ${
               interview.candidates.last_name || ""
             }`.trim() || interview.candidates.email
-          : "Unknown",
+          : interview.candidate_name || "Unknown",
         interviewer_id: interview.interviewer_id,
         interviewer_name: interview.interviewers
           ? `${interview.interviewers.first_name || ""} ${
@@ -125,8 +144,6 @@ const InterviewManagement = () => {
 
       setJobs(jobsData || []);
       setInterviews(formattedInterviews);
-      setCandidates(candidatesData || []);
-      setInterviewers(interviewersData || []);
       setExams(examsData || []);
     } catch (error: any) {
       console.error("Error fetching data:", error);
@@ -143,22 +160,29 @@ const InterviewManagement = () => {
     fetchData();
   }, [isAdmin, isHR, user?.id]);
 
+  // Create a formatted candidates array with name property for InterviewFormDialog
+  const formattedCandidates = candidates.map(candidate => ({
+    id: candidate.id,
+    name: candidate.name || `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() || candidate.email,
+    email: candidate.email
+  }));
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Interview Management</h1>
           <InterviewFormDialog 
-            candidates={candidates}
+            candidates={formattedCandidates}
             interviewers={interviewers}
-            onSuccess={fetchData}
+            onInterviewCreated={fetchData}
           />
         </div>
 
         <InterviewsListCard 
           isLoading={isLoading}
           interviews={interviews}
-          candidates={candidates}
+          candidates={formattedCandidates}
           interviewers={interviewers}
           exams={exams}
           onRefresh={fetchData}

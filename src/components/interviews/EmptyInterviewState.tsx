@@ -5,8 +5,17 @@ import { PlusCircle } from "lucide-react";
 import { InterviewFormDialog } from "./InterviewFormDialog";
 
 interface EmptyInterviewStateProps {
-  candidates: any[];
-  interviewers: any[];
+  candidates: Array<{
+    id: string;
+    name: string;
+    email: string;
+  }>;
+  interviewers: Array<{
+    id: string;
+    email: string;
+    first_name: string | null;
+    last_name: string | null;
+  }>;
   onSuccess: () => void;
 }
 
@@ -25,13 +34,7 @@ export const EmptyInterviewState = ({
       <InterviewFormDialog
         candidates={candidates}
         interviewers={interviewers}
-        onSuccess={onSuccess}
-        trigger={
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Schedule Interview
-          </Button>
-        }
+        onInterviewCreated={onSuccess}
       />
     </div>
   );

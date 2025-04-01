@@ -28,6 +28,12 @@ interface InterviewFormDialogProps {
     name: string;
     email: string;
   }>;
+  interviewers?: Array<{
+    id: string;
+    email: string;
+    first_name: string | null;
+    last_name: string | null;
+  }>;
 }
 
 interface InterviewFormValues {
@@ -38,7 +44,8 @@ interface InterviewFormValues {
 
 export const InterviewFormDialog = ({ 
   onInterviewCreated, 
-  candidates 
+  candidates,
+  interviewers = [] 
 }: InterviewFormDialogProps) => {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);

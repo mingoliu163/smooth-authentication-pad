@@ -24,7 +24,8 @@ import {
   Briefcase, 
   Calendar, 
   ChevronRight,
-  FileCheck
+  FileCheck,
+  LogOut
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -59,7 +60,7 @@ interface Interview {
 }
 
 const JobSeekerDashboard = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -81,20 +82,34 @@ const JobSeekerDashboard = () => {
         if (jobsError) throw jobsError;
         
         // Fetch interviews for this candidate
+        // Use multiple conditions to find interviews for this user
         const { data: interviewsData, error: interviewsError } = await supabase
           .from("interviews")
           .select("*")
-          .eq("candidate_name", user.email) // assuming candidate_name matches email
+          .or(`candidate_id.eq.${user.id},candidate_name.eq.${user.email}`)
           .order("date", { ascending: true });
         
-        if (interviewsError) throw interviewsError;
+        if (interviewsError) {
+          console.error("Interview fetch error:", interviewsError);
+          // Try alternative query if the first one fails
+          const { data: altInterviewsData, error: altError } = await supabase
+            .from("interviews")
+            .select("*")
+            .eq("candidate_name", user.email)
+            .order("date", { ascending: true });
+            
+          if (!altError) {
+            setInterviews(altInterviewsData || []);
+          }
+        } else {
+          setInterviews(interviewsData || []);
+        }
         
         // Since there's no applications table, we can create a mock or placeholder
         // In a real scenario, you would create and query a proper applications table
         const mockApplications: JobApplication[] = [];
         
         setJobs(jobsData || []);
-        setInterviews(interviewsData || []);
         setApplications(mockApplications);
       } catch (error: any) {
         console.error("Error fetching dashboard data:", error);
@@ -120,9 +135,19 @@ const JobSeekerDashboard = () => {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <div className="flex flex-col mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-gray-600">Welcome back, {user?.email}</p>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-gray-600">Welcome back, {user?.email}</p>
+        </div>
+        <Button 
+          variant="outline" 
+          onClick={signOut}
+          className="flex items-center gap-2"
+        >
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </Button>
       </div>
       
       <Tabs defaultValue="interviews" className="space-y-6">

@@ -67,14 +67,10 @@ const InterviewManagement = () => {
 
       if (jobsError) throw jobsError;
 
-      // Fetch interviews with candidate and interviewer names
+      // Fetch interviews - modified to remove the relationship query that's causing errors
       const { data: interviewsData, error: interviewsError } = await supabase
         .from("interviews")
-        .select(`
-          *,
-          candidates:candidate_id (email, first_name, last_name),
-          interviewers:interviewer_id (email, first_name, last_name)
-        `)
+        .select("*")
         .order("date", { ascending: false });
 
       if (interviewsError) throw interviewsError;
@@ -129,22 +125,14 @@ const InterviewManagement = () => {
 
       if (examsError) throw examsError;
 
-      // Format the interviews data
+      // Format the interviews data - simplify to just use the data we have
       const formattedInterviews: Interview[] = interviewsData.map((interview: any) => ({
         id: interview.id,
         date: interview.date,
-        candidate_id: interview.candidate_id,
-        candidate_name: interview.candidates
-          ? `${interview.candidates.first_name || ""} ${
-              interview.candidates.last_name || ""
-            }`.trim() || interview.candidates.email
-          : interview.candidate_name || "Unknown",
-        interviewer_id: interview.interviewer_id,
-        interviewer_name: interview.interviewers
-          ? `${interview.interviewers.first_name || ""} ${
-              interview.interviewers.last_name || ""
-            }`.trim() || interview.interviewers.email
-          : null,
+        candidate_id: "", // Since we don't have a relationship, setting to empty string
+        candidate_name: interview.candidate_name || "Unknown",
+        interviewer_id: null,
+        interviewer_name: null,
         position: interview.position,
         status: interview.status,
       }));

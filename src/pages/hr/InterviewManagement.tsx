@@ -89,8 +89,15 @@ const InterviewManagement = () => {
         // Set default empty array if there's an error
         setCandidates([]);
       } else {
-        // Set candidates data if successful
-        setCandidates(candidatesData || []);
+        // Transform the candidates data to match the Candidate interface
+        const formattedCandidates: Candidate[] = (candidatesData || []).map(candidate => ({
+          id: candidate.id,
+          name: candidate.name,
+          email: candidate.email,
+          first_name: null,  // Add these properties to match the Candidate interface
+          last_name: null    // Add these properties to match the Candidate interface
+        }));
+        setCandidates(formattedCandidates);
       }
 
       // Fetch potential interviewers (HR and admin users)

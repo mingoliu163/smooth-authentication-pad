@@ -28,7 +28,7 @@ interface InterviewFormDialogProps {
     name: string;
     email: string;
   }>;
-  interviewers?: Array<{
+  interviewers: Array<{
     id: string;
     email: string;
     first_name: string | null;

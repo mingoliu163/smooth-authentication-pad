@@ -81,28 +81,77 @@ const JobSeekerDashboard = () => {
         
         if (jobsError) throw jobsError;
         
-        // Fetch interviews for this candidate
-        // Use multiple conditions to find interviews for this user
-        const { data: interviewsData, error: interviewsError } = await supabase
-          .from("interviews")
-          .select("*")
-          .or(`candidate_id.eq.${user.id},candidate_name.eq.${user.email}`)
-          .order("date", { ascending: true });
+        // Fetch interviews for this candidate - using email and user ID
+        // The email comparison handles legacy entries, and the ID ensures future assignments work
+        console.log("Fetching interviews for user:", user.id, user.email);
         
-        if (interviewsError) {
-          console.error("Interview fetch error:", interviewsError);
-          // Try alternative query if the first one fails
-          const { data: altInterviewsData, error: altError } = await supabase
+        let queryString = '';
+        
+        // Build the query string more carefully to avoid syntax errors
+        if (user.id) {
+          queryString = `candidate_id.eq.${user.id}`;
+        }
+        
+        if (user.email) {
+          if (queryString) {
+            queryString += `,candidate_name.eq.${user.email}`;
+          } else {
+            queryString = `candidate_name.eq.${user.email}`;
+          }
+        }
+        
+        // Only execute the query if we have something to query by
+        if (queryString) {
+          const { data: interviewsData, error: interviewsError } = await supabase
             .from("interviews")
             .select("*")
-            .eq("candidate_name", user.email)
+            .or(queryString)
             .order("date", { ascending: true });
+          
+          if (interviewsError) {
+            console.error("Interview fetch error:", interviewsError);
             
-          if (!altError) {
-            setInterviews(altInterviewsData || []);
+            // Fallback to try each condition separately
+            if (user.email) {
+              const { data: nameInterviews, error: nameError } = await supabase
+                .from("interviews")
+                .select("*")
+                .eq("candidate_name", user.email)
+                .order("date", { ascending: true });
+                
+              if (!nameError) {
+                console.log("Found interviews by name:", nameInterviews?.length);
+                setInterviews(nameInterviews || []);
+              }
+            }
+            
+            if (user.id) {
+              const { data: idInterviews, error: idError } = await supabase
+                .from("interviews")
+                .select("*")
+                .eq("candidate_id", user.id)
+                .order("date", { ascending: true });
+                
+              if (!idError && idInterviews && idInterviews.length > 0) {
+                console.log("Found interviews by ID:", idInterviews.length);
+                // If we already have interviews from the name query, combine them
+                setInterviews(prevInterviews => {
+                  // Create a map of existing interview IDs to avoid duplicates
+                  const existingIds = new Set(prevInterviews.map(i => i.id));
+                  // Filter out duplicates and combine arrays
+                  const uniqueNewInterviews = idInterviews.filter(i => !existingIds.has(i.id));
+                  return [...prevInterviews, ...uniqueNewInterviews];
+                });
+              }
+            }
+          } else {
+            console.log("Found interviews:", interviewsData?.length);
+            setInterviews(interviewsData || []);
           }
         } else {
-          setInterviews(interviewsData || []);
+          // No valid query criteria
+          console.log("No valid query criteria for interviews");
+          setInterviews([]);
         }
         
         // Since there's no applications table, we can create a mock or placeholder

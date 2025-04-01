@@ -35,7 +35,6 @@ interface Candidate {
 
 interface Interviewer {
   id: string;
-  email: string;
   first_name: string | null;
   last_name: string | null;
 }
@@ -102,7 +101,7 @@ const InterviewManagement = () => {
       // Fetch potential interviewers (HR and admin users)
       const { data: interviewersData, error: interviewersError } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, email")
+        .select("id, first_name, last_name")
         .or("role.eq.hr,role.eq.admin")
         .eq("approved", true);
 
@@ -112,7 +111,6 @@ const InterviewManagement = () => {
       } else {
         const formattedInterviewers: Interviewer[] = (interviewersData || []).map(interviewer => ({
           id: interviewer.id,
-          email: interviewer.email || "",
           first_name: interviewer.first_name,
           last_name: interviewer.last_name
         }));
@@ -170,6 +168,13 @@ const InterviewManagement = () => {
     email: candidate.email
   }));
 
+  // Create a formatted interviewers array for InterviewFormDialog
+  const formattedInterviewers = interviewers.map(interviewer => ({
+    id: interviewer.id,
+    name: `${interviewer.first_name || ''} ${interviewer.last_name || ''}`.trim() || "Unnamed Interviewer",
+    email: "" // Since profiles doesn't have email, we provide an empty string
+  }));
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
@@ -177,7 +182,7 @@ const InterviewManagement = () => {
           <h1 className="text-2xl font-bold">Interview Management</h1>
           <InterviewFormDialog 
             candidates={formattedCandidates}
-            interviewers={interviewers}
+            interviewers={formattedInterviewers}
             onInterviewCreated={fetchData}
           />
         </div>
@@ -186,7 +191,7 @@ const InterviewManagement = () => {
           isLoading={isLoading}
           interviews={interviews}
           candidates={formattedCandidates}
-          interviewers={interviewers}
+          interviewers={formattedInterviewers}
           exams={exams}
           onRefresh={fetchData}
         />

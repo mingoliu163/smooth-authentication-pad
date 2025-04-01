@@ -67,10 +67,14 @@ const InterviewManagement = () => {
 
       if (jobsError) throw jobsError;
 
-      // Fetch interviews - modified to remove the relationship query that's causing errors
+      // Fetch interviews with proper relationships
       const { data: interviewsData, error: interviewsError } = await supabase
         .from("interviews")
-        .select("*")
+        .select(`
+          *,
+          candidates:candidate_id (id, name, email),
+          profiles:interviewer_id (id, first_name, last_name)
+        `)
         .order("date", { ascending: false });
 
       if (interviewsError) throw interviewsError;
@@ -82,7 +86,6 @@ const InterviewManagement = () => {
 
       if (candidatesError) {
         console.error("Error fetching candidates:", candidatesError);
-        // Set default empty array if there's an error
         setCandidates([]);
       } else {
         // Transform the candidates data to match the Candidate interface
@@ -99,19 +102,17 @@ const InterviewManagement = () => {
       // Fetch potential interviewers (HR and admin users)
       const { data: interviewersData, error: interviewersError } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name")
+        .select("id, first_name, last_name, email")
         .or("role.eq.hr,role.eq.admin")
         .eq("approved", true);
 
       if (interviewersError) {
         console.error("Error fetching interviewers:", interviewersError);
-        // Set default empty array if there's an error
         setInterviewers([]);
       } else {
-        // Format interviewers data to include email (even though we don't have it from profiles)
         const formattedInterviewers: Interviewer[] = (interviewersData || []).map(interviewer => ({
           id: interviewer.id,
-          email: "", // Since we don't have email in profiles, setting to empty string
+          email: interviewer.email || "",
           first_name: interviewer.first_name,
           last_name: interviewer.last_name
         }));
@@ -125,17 +126,24 @@ const InterviewManagement = () => {
 
       if (examsError) throw examsError;
 
-      // Format the interviews data - simplify to just use the data we have
-      const formattedInterviews: Interview[] = interviewsData.map((interview: any) => ({
-        id: interview.id,
-        date: interview.date,
-        candidate_id: "", // Since we don't have a relationship, setting to empty string
-        candidate_name: interview.candidate_name || "Unknown",
-        interviewer_id: null,
-        interviewer_name: null,
-        position: interview.position,
-        status: interview.status,
-      }));
+      // Format the interviews data with proper relationship handling
+      const formattedInterviews: Interview[] = (interviewsData || []).map((interview: any) => {
+        const candidate = interview.candidates;
+        const interviewer = interview.profiles;
+        
+        return {
+          id: interview.id,
+          date: interview.date,
+          candidate_id: candidate?.id || "",
+          candidate_name: candidate?.name || interview.candidate_name || "Unknown",
+          interviewer_id: interviewer?.id || null,
+          interviewer_name: interviewer ? 
+            `${interviewer.first_name || ""} ${interviewer.last_name || ""}`.trim() || "Unnamed Interviewer" : 
+            null,
+          position: interview.position,
+          status: interview.status,
+        };
+      });
 
       setJobs(jobsData || []);
       setInterviews(formattedInterviews);

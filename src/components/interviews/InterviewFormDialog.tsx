@@ -37,9 +37,10 @@ interface InterviewFormDialogProps {
 }
 
 interface InterviewFormValues {
-  candidate_name: string;
+  candidate_id: string;
   position: string;
   date: Date;
+  interviewer_id?: string;
 }
 
 export const InterviewFormDialog = ({ 
@@ -52,9 +53,10 @@ export const InterviewFormDialog = ({
 
   const form = useForm<InterviewFormValues>({
     defaultValues: {
-      candidate_name: '',
+      candidate_id: '',
       position: '',
       date: new Date(),
+      interviewer_id: '',
     },
   });
 
@@ -65,11 +67,17 @@ export const InterviewFormDialog = ({
       // Format date for Supabase
       const formattedDate = data.date.toISOString();
 
-      // Insert new interview
+      // Get candidate name from the selected candidate_id
+      const selectedCandidate = candidates.find(c => c.id === data.candidate_id);
+      const candidateName = selectedCandidate ? selectedCandidate.name : "Unknown";
+
+      // Insert new interview with proper foreign key
       const { error } = await supabase
         .from('interviews')
         .insert({
-          candidate_name: data.candidate_name,
+          candidate_id: data.candidate_id,
+          candidate_name: candidateName, // This will be automatically updated by the trigger
+          interviewer_id: data.interviewer_id || null,
           position: data.position,
           date: formattedDate,
           status: 'Scheduled'
@@ -105,7 +113,7 @@ export const InterviewFormDialog = ({
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="candidate_name"
+              name="candidate_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Candidate</FormLabel>
@@ -120,7 +128,7 @@ export const InterviewFormDialog = ({
                     </FormControl>
                     <SelectContent>
                       {candidates.map((candidate) => (
-                        <SelectItem key={candidate.id} value={candidate.name}>
+                        <SelectItem key={candidate.id} value={candidate.id}>
                           {candidate.name}
                         </SelectItem>
                       ))}
@@ -130,6 +138,36 @@ export const InterviewFormDialog = ({
                 </FormItem>
               )}
             />
+            
+            <FormField
+              control={form.control}
+              name="interviewer_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Interviewer (Optional)</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select interviewer" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {interviewers.map((interviewer) => (
+                        <SelectItem key={interviewer.id} value={interviewer.id}>
+                          {`${interviewer.first_name || ""} ${interviewer.last_name || ""}`.trim() || interviewer.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
             <FormField
               control={form.control}
               name="position"

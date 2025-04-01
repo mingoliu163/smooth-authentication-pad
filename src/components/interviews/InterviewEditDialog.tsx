@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -65,6 +65,11 @@ export const InterviewEditDialog = ({
 }: InterviewEditDialogProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editInterview, setEditInterview] = useState<Interview | null>(interview);
+
+  // Update local state when prop changes
+  useEffect(() => {
+    setEditInterview(interview);
+  }, [interview]);
 
   const handleUpdateInterview = async () => {
     try {

@@ -305,33 +305,54 @@ export type Database = {
       }
       interviews: {
         Row: {
+          candidate_id: string | null
           candidate_name: string
           created_at: string
           date: string
           id: string
+          interviewer_id: string | null
           position: string
           status: string
           updated_at: string
         }
         Insert: {
+          candidate_id?: string | null
           candidate_name: string
           created_at?: string
           date: string
           id?: string
+          interviewer_id?: string | null
           position: string
           status?: string
           updated_at?: string
         }
         Update: {
+          candidate_id?: string | null
           candidate_name?: string
           created_at?: string
           date?: string
           id?: string
+          interviewer_id?: string | null
           position?: string
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "interviews_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_interviewer_id_fkey"
+            columns: ["interviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       jobs: {
         Row: {

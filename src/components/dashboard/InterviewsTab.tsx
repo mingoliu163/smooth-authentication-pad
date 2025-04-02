@@ -2,7 +2,7 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, CalendarIcon } from "lucide-react";
 import { LoadingState } from "./LoadingState";
 import { EmptyState } from "./EmptyState";
 
@@ -40,13 +40,16 @@ export const InterviewsTab = ({
         ) : interviews.length > 0 ? (
           <div className="space-y-4">
             {interviews.map((interview) => (
-              <div key={interview.id} className="border rounded-lg p-4">
+              <div key={interview.id} className="border rounded-lg p-4 hover:border-primary/50 transition-colors">
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <h3 className="font-semibold">{interview.position} Interview</h3>
-                    <p className="text-sm text-gray-600">{formatDate(interview.date)}</p>
+                    <div className="flex items-center text-sm text-gray-600 mt-1">
+                      <CalendarIcon className="h-3.5 w-3.5 mr-1" />
+                      {formatDate(interview.date)}
+                    </div>
                   </div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
+                  <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${
                     interview.status === 'Completed' ? 'bg-green-100 text-green-800' : 
                     interview.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' : 
                     'bg-gray-100 text-gray-800'
@@ -54,7 +57,7 @@ export const InterviewsTab = ({
                     {interview.status}
                   </span>
                 </div>
-                <div className="flex justify-end mt-2">
+                <div className="flex justify-end mt-3">
                   <Button asChild variant="outline" size="sm">
                     <Link to={`/interviews/${interview.id}`}>
                       View Details
@@ -69,6 +72,7 @@ export const InterviewsTab = ({
           <EmptyState 
             title="No interviews scheduled" 
             message="You don't have any upcoming interviews at the moment."
+            icon={<CalendarIcon className="mx-auto h-10 w-10 text-gray-400 mb-3" />}
           />
         )}
       </CardContent>

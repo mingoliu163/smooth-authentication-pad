@@ -62,84 +62,57 @@ export const useJobSeekerDashboard = (): DashboardData => {
         
         if (jobsError) throw jobsError;
         
-        // Fetch interviews for this candidate - using email and user ID
-        // The email comparison handles legacy entries, and the ID ensures future assignments work
+        // Fetch interviews for this candidate
         console.log("Fetching interviews for user:", user.id, user.email);
         
-        let queryString = '';
+        // First attempt: Using candidate_id exact match
+        let { data: interviewsByIdData, error: interviewsByIdError } = await supabase
+          .from("interviews")
+          .select("*")
+          .eq("candidate_id", user.id)
+          .order("date", { ascending: true });
         
-        // Build the query string more carefully to avoid syntax errors
-        if (user.id) {
-          queryString = `candidate_id.eq.${user.id}`;
-        }
+        console.log("Interviews by candidate_id:", interviewsByIdData?.length || 0);
         
-        if (user.email) {
-          if (queryString) {
-            queryString += `,candidate_name.eq.${user.email}`;
-          } else {
-            queryString = `candidate_name.eq.${user.email}`;
-          }
-        }
+        // Second attempt: Using candidate_name exact match (email)
+        let { data: interviewsByNameData, error: interviewsByNameError } = await supabase
+          .from("interviews")
+          .select("*")
+          .eq("candidate_name", user.email)
+          .order("date", { ascending: true });
         
-        // Only execute the query if we have something to query by
-        if (queryString) {
-          const { data: interviewsData, error: interviewsError } = await supabase
+        console.log("Interviews by candidate_name with email:", interviewsByNameData?.length || 0);
+        
+        // Third attempt: Using candidate_name with pattern match (could be just first name, etc)
+        let { data: interviewsByPartialNameData, error: interviewsByPartialNameError } = 
+          user.email ? await supabase
             .from("interviews")
             .select("*")
-            .or(queryString)
-            .order("date", { ascending: true });
-          
-          if (interviewsError) {
-            console.error("Interview fetch error:", interviewsError);
+            .ilike("candidate_name", `%${user.email.split("@")[0]}%`)
+            .order("date", { ascending: true })
+          : { data: null, error: null };
             
-            // Fallback to try each condition separately
-            if (user.email) {
-              const { data: nameInterviews, error: nameError } = await supabase
-                .from("interviews")
-                .select("*")
-                .eq("candidate_name", user.email)
-                .order("date", { ascending: true });
-                
-              if (!nameError) {
-                console.log("Found interviews by name:", nameInterviews?.length);
-                setInterviews(nameInterviews || []);
-              }
-            }
-            
-            if (user.id) {
-              const { data: idInterviews, error: idError } = await supabase
-                .from("interviews")
-                .select("*")
-                .eq("candidate_id", user.id)
-                .order("date", { ascending: true });
-                
-              if (!idError && idInterviews && idInterviews.length > 0) {
-                console.log("Found interviews by ID:", idInterviews.length);
-                // If we already have interviews from the name query, combine them
-                setInterviews(prevInterviews => {
-                  // Create a map of existing interview IDs to avoid duplicates
-                  const existingIds = new Set(prevInterviews.map(i => i.id));
-                  // Filter out duplicates and combine arrays
-                  const uniqueNewInterviews = idInterviews.filter(i => !existingIds.has(i.id));
-                  return [...prevInterviews, ...uniqueNewInterviews];
-                });
-              }
-            }
-          } else {
-            console.log("Found interviews:", interviewsData?.length);
-            setInterviews(interviewsData || []);
-          }
-        } else {
-          // No valid query criteria
-          console.log("No valid query criteria for interviews");
-          setInterviews([]);
-        }
+        console.log("Interviews by partial name:", interviewsByPartialNameData?.length || 0);
+        
+        // Combine all results, removing duplicates by ID
+        const allInterviews = [
+          ...(interviewsByIdData || []),
+          ...(interviewsByNameData || []),
+          ...(interviewsByPartialNameData || [])
+        ];
+        
+        // Remove duplicates by ID
+        const uniqueInterviews = Array.from(
+          new Map(allInterviews.map(item => [item.id, item])).values()
+        );
+        
+        console.log("Total unique interviews found:", uniqueInterviews.length);
         
         // Since there's no applications table, we can create a mock or placeholder
-        // In a real scenario, you would create and query a proper applications table
         const mockApplications: JobApplication[] = [];
         
         setJobs(jobsData || []);
+        setInterviews(uniqueInterviews);
         setApplications(mockApplications);
       } catch (error: any) {
         console.error("Error fetching dashboard data:", error);

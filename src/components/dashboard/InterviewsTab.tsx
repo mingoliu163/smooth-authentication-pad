@@ -2,7 +2,7 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, CalendarIcon } from "lucide-react";
+import { ChevronRight, CalendarIcon, RefreshCw } from "lucide-react";
 import { LoadingState } from "./LoadingState";
 import { EmptyState } from "./EmptyState";
 
@@ -19,24 +19,32 @@ interface InterviewsTabProps {
   interviews: Interview[];
   isLoading: boolean;
   formatDate: (dateString: string) => string;
+  onRefresh: () => void;
 }
 
 export const InterviewsTab = ({ 
   interviews, 
   isLoading, 
-  formatDate 
+  formatDate,
+  onRefresh
 }: InterviewsTabProps) => {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Upcoming Interviews</CardTitle>
-        <CardDescription>
-          Your scheduled interviews and assessments
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Upcoming Interviews</CardTitle>
+          <CardDescription>
+            Your scheduled interviews and assessments
+          </CardDescription>
+        </div>
+        <Button variant="outline" size="sm" onClick={onRefresh}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <LoadingState />
+          <LoadingState message="Loading your interviews..." />
         ) : interviews.length > 0 ? (
           <div className="space-y-4">
             {interviews.map((interview) => (
@@ -71,8 +79,9 @@ export const InterviewsTab = ({
         ) : (
           <EmptyState 
             title="No interviews scheduled" 
-            message="You don't have any upcoming interviews at the moment."
+            message="You don't have any upcoming interviews at the moment. If you believe this is an error, try refreshing the data."
             icon={<CalendarIcon className="mx-auto h-10 w-10 text-gray-400 mb-3" />}
+            onRefresh={onRefresh}
           />
         )}
       </CardContent>

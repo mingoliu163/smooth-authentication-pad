@@ -1,13 +1,14 @@
 
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 interface EmptyStateProps {
   title: string;
   message: string;
   actionLabel?: string;
   actionLink?: string;
+  onRefresh?: () => void;
   icon?: React.ReactNode;
 }
 
@@ -16,6 +17,7 @@ export const EmptyState = ({
   message, 
   actionLabel, 
   actionLink,
+  onRefresh,
   icon = <AlertCircle className="mx-auto h-10 w-10 text-gray-400 mb-3" />
 }: EmptyStateProps) => {
   return (
@@ -25,11 +27,19 @@ export const EmptyState = ({
       <p className="text-gray-600 mb-4">
         {message}
       </p>
-      {actionLabel && actionLink && (
-        <Button asChild>
-          <Link to={actionLink}>{actionLabel}</Link>
-        </Button>
-      )}
+      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        {actionLabel && actionLink && (
+          <Button asChild>
+            <Link to={actionLink}>{actionLabel}</Link>
+          </Button>
+        )}
+        {onRefresh && (
+          <Button variant="outline" onClick={onRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh Data
+          </Button>
+        )}
+      </div>
     </div>
   );
 };

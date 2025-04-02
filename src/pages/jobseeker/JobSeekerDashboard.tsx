@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useJobSeekerDashboard } from "@/hooks/useJobSeekerDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,10 +8,17 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { InterviewsTab } from "@/components/dashboard/InterviewsTab";
 import { ApplicationsTab } from "@/components/dashboard/ApplicationsTab";
 import { RecommendationsTab } from "@/components/dashboard/RecommendationsTab";
+import { toast } from "sonner";
 
 const JobSeekerDashboard = () => {
   const { user, signOut } = useAuth();
-  const { jobs, applications, interviews, isLoading } = useJobSeekerDashboard();
+  const [refreshCounter, setRefreshCounter] = useState(0);
+  const { jobs, applications, interviews, isLoading } = useJobSeekerDashboard(refreshCounter);
+  
+  const handleRefresh = useCallback(() => {
+    setRefreshCounter(prev => prev + 1);
+    toast.info("Refreshing data...");
+  }, []);
   
   const formatDate = (dateString: string) => {
     const options: Intl.DateTimeFormatOptions = { 
@@ -48,7 +55,8 @@ const JobSeekerDashboard = () => {
           <InterviewsTab 
             interviews={interviews} 
             isLoading={isLoading} 
-            formatDate={formatDate} 
+            formatDate={formatDate}
+            onRefresh={handleRefresh}
           />
         </TabsContent>
         

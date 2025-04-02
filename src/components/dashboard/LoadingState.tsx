@@ -2,9 +2,14 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
-export const LoadingState = () => {
+interface LoadingStateProps {
+  message?: string;
+}
+
+export const LoadingState = ({ message = "Loading data..." }: LoadingStateProps) => {
   return (
     <div className="space-y-4">
+      <div className="text-center text-sm text-gray-500 mb-2">{message}</div>
       <Card>
         <CardHeader>
           <Skeleton className="h-6 w-48" />

@@ -169,11 +169,11 @@ export const InterviewEditDialog = ({
               Interviewer
             </Label>
             <Select
-              value={editInterview.interviewer_id || ""}
+              value={editInterview.interviewer_id || "none"}
               onValueChange={(value) =>
                 setEditInterview({
                   ...editInterview,
-                  interviewer_id: value || null,
+                  interviewer_id: value === "none" ? null : value,
                 })
               }
             >
@@ -181,7 +181,7 @@ export const InterviewEditDialog = ({
                 <SelectValue placeholder="Select interviewer (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {interviewers.map((interviewer) => (
                   <SelectItem key={interviewer.id} value={interviewer.id}>
                     {getFullName(

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,7 +55,7 @@ export const InterviewFormDialog = ({
       candidate_id: '',
       position: '',
       date: new Date(),
-      interviewer_id: '',
+      interviewer_id: 'none',
     },
   });
 
@@ -75,7 +76,7 @@ export const InterviewFormDialog = ({
         .insert({
           candidate_id: data.candidate_id,
           candidate_name: candidateName, // This will be automatically updated by the trigger
-          interviewer_id: data.interviewer_id || null,
+          interviewer_id: data.interviewer_id === 'none' ? null : data.interviewer_id,
           position: data.position,
           date: formattedDate,
           status: 'Scheduled'
@@ -153,7 +154,7 @@ export const InterviewFormDialog = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {interviewers.map((interviewer) => (
                         <SelectItem key={interviewer.id} value={interviewer.id}>
                           {interviewer.name}

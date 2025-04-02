@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import AdminLayout from "@/components/layouts/AdminLayout";
@@ -16,6 +17,7 @@ interface Interview {
   interviewer_name: string | null;
   position: string;
   status: string;
+  user_id: string | null;
 }
 
 interface Job {
@@ -30,6 +32,7 @@ interface Candidate {
   email: string;
   first_name: string | null;
   last_name: string | null;
+  user_id: string | null;
 }
 
 interface Interviewer {
@@ -70,7 +73,7 @@ const InterviewManagement = () => {
         .from("interviews")
         .select(`
           *,
-          candidates:candidate_id (id, name, email),
+          candidates:candidate_id (id, name, email, user_id),
           profiles:interviewer_id (id, first_name, last_name)
         `)
         .order("date", { ascending: false });
@@ -80,7 +83,7 @@ const InterviewManagement = () => {
       // Fetch candidates (job seekers)
       const { data: candidatesData, error: candidatesError } = await supabase
         .from("candidates")
-        .select("id, name, email");
+        .select("id, name, email, user_id");
 
       if (candidatesError) {
         console.error("Error fetching candidates:", candidatesError);
@@ -92,7 +95,8 @@ const InterviewManagement = () => {
           name: candidate.name,
           email: candidate.email,
           first_name: null,  // Add these properties to match the Candidate interface
-          last_name: null    // Add these properties to match the Candidate interface
+          last_name: null,   // Add these properties to match the Candidate interface
+          user_id: candidate.user_id
         }));
         setCandidates(formattedCandidates);
       }
@@ -139,6 +143,7 @@ const InterviewManagement = () => {
             null,
           position: interview.position,
           status: interview.status,
+          user_id: interview.user_id || candidate?.user_id || null
         };
       });
 

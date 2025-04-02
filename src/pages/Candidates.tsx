@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CandidateCard, { CandidateType } from "@/components/CandidateCard";
@@ -25,9 +26,11 @@ type CandidateFromDB = {
   tags: string[] | null;
   created_at: string;
   updated_at: string;
+  user_id: string | null;
 }
 
 const Candidates = () => {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentTab, setCurrentTab] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -48,6 +51,32 @@ const Candidates = () => {
       }
       
       console.log("Candidates data:", data);
+
+      // If the user is logged in, update any candidates that match the user's email with user_id
+      if (user && user.email) {
+        const candidatesToUpdate = (data || []).filter(
+          candidate => candidate.email === user.email && !candidate.user_id
+        );
+        
+        if (candidatesToUpdate.length > 0) {
+          console.log(`Found ${candidatesToUpdate.length} candidates to link with current user`);
+          
+          for (const candidate of candidatesToUpdate) {
+            const { error: updateError } = await supabase
+              .from("candidates")
+              .update({ user_id: user.id })
+              .eq("id", candidate.id);
+              
+            if (updateError) {
+              console.error("Error linking candidate to user:", updateError, candidate);
+            } else {
+              console.log("Successfully linked candidate to user:", candidate.id);
+              candidate.user_id = user.id; // Update in local data
+            }
+          }
+        }
+      }
+      
       return (data || []).map(candidate => ({
         id: candidate.id,
         name: candidate.name,
@@ -58,6 +87,7 @@ const Candidates = () => {
         status: mapStatusToAllowedType(candidate.status),
         appliedDate: formatTimeAgo(candidate.applied_date),
         tags: candidate.tags || [],
+        user_id: candidate.user_id
       }));
     },
   });

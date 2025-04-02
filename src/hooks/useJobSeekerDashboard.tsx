@@ -31,6 +31,7 @@ interface Interview {
   candidate_name: string;
   position: string;
   status: string;
+  user_id?: string;
 }
 
 export interface DashboardData {
@@ -62,61 +63,34 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
         
         if (jobsError) throw jobsError;
         
-        // Fetch interviews using multiple approaches to ensure we find all relevant interviews
-        console.log("Fetching interviews for user:", user.id, user.email);
+        // Fetch interviews directly using user_id (much simpler now!)
+        console.log("Fetching interviews for user:", user.id);
         
-        if (!user.email) {
-          console.error("User email is missing");
-          setInterviews([]);
-          setIsLoading(false);
-          return;
-        }
-        
-        // First attempt: Exact match on candidate_name (email)
-        let { data: interviewsData, error: interviewsError } = await supabase
+        const { data: interviewsData, error: interviewsError } = await supabase
           .from("interviews")
           .select("*")
-          .eq("candidate_name", user.email)
+          .eq("user_id", user.id)
           .order("date", { ascending: true });
           
         if (interviewsError) {
-          console.error("Error fetching interviews by exact email:", interviewsError);
+          console.error("Error fetching interviews by user_id:", interviewsError);
         } else {
-          console.log(`Found ${interviewsData?.length || 0} interviews with exact email match for ${user.email}`);
+          console.log(`Found ${interviewsData?.length || 0} interviews with direct user_id match`);
         }
         
-        // If no interviews found or there was an error, try a case-insensitive search
-        if (!interviewsData?.length || interviewsError) {
-          const { data: ilikeCandidates, error: ilikeError } = await supabase
-            .from("interviews")
-            .select("*")
-            .ilike("candidate_name", `%${user.email}%`)
-            .order("date", { ascending: true });
-            
-          if (ilikeError) {
-            console.error("Error fetching interviews with ilike:", ilikeError);
-          } else {
-            console.log(`Found ${ilikeCandidates?.length || 0} interviews with partial email match`);
-            
-            if (ilikeCandidates?.length) {
-              interviewsData = ilikeCandidates;
-            }
-          }
-        }
-        
-        // As a fallback, let's also check candidates table to find associated interviews
-        if ((!interviewsData?.length || interviewsError) && user.email) {
-          console.log("Attempting to find candidate by email:", user.email);
+        // If no interviews found directly by user_id, try fetching by candidate ID first
+        if (!interviewsData?.length) {
+          console.log("No interviews found directly. Trying to find candidate record...");
           
-          // Find the candidate ID by email
+          // First find if this user has a candidate record
           const { data: candidateData, error: candidateError } = await supabase
             .from("candidates")
-            .select("id, name")
-            .eq("email", user.email)
-            .single();
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle();
             
           if (candidateError) {
-            console.error("Error finding candidate by email:", candidateError);
+            console.error("Error finding candidate by user_id:", candidateError);
           } else if (candidateData) {
             console.log("Found candidate:", candidateData);
             
@@ -131,15 +105,84 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
               console.error("Error fetching interviews by candidate ID:", ciError);
             } else {
               console.log(`Found ${candidateInterviews?.length || 0} interviews by candidate ID`);
-              interviewsData = candidateInterviews;
+              if (candidateInterviews?.length) {
+                setInterviews(candidateInterviews);
+                setJobs(jobsData || []);
+                setApplications([]);
+                setIsLoading(false);
+                return;
+              }
             }
           }
         }
         
-        // Final fallback: Fetch a limited number of all interviews and filter on the client side
-        if (!interviewsData?.length || interviewsError) {
-          console.log("Using fallback interview fetch method");
+        // Fallback: Still try the email match as before if we haven't found anything
+        if (!interviewsData?.length && user.email) {
+          console.log("Attempting fallback: find candidate by email:", user.email);
           
+          // First try to find a candidate with matching email
+          const { data: emailCandidateData, error: emailCandidateError } = await supabase
+            .from("candidates")
+            .select("*")
+            .eq("email", user.email)
+            .maybeSingle();
+            
+          if (emailCandidateError) {
+            console.error("Error finding candidate by email:", emailCandidateError);
+          } else if (emailCandidateData) {
+            console.log("Found candidate by email:", emailCandidateData);
+            
+            // Update the candidate with user_id if not already set
+            if (!emailCandidateData.user_id) {
+              const { error: updateError } = await supabase
+                .from("candidates")
+                .update({ user_id: user.id })
+                .eq("id", emailCandidateData.id);
+                
+              if (updateError) {
+                console.error("Error linking candidate to user:", updateError);
+              } else {
+                console.log("Successfully linked candidate to user");
+              }
+            }
+            
+            // Fetch interviews for this candidate
+            const { data: candidateInterviews, error: ciError } = await supabase
+              .from("interviews")
+              .select("*")
+              .eq("candidate_id", emailCandidateData.id)
+              .order("date", { ascending: true });
+              
+            if (ciError) {
+              console.error("Error fetching interviews for email-matched candidate:", ciError);
+            } else {
+              console.log(`Found ${candidateInterviews?.length || 0} interviews for email-matched candidate`);
+              if (candidateInterviews?.length) {
+                // Also update the interviews with user_id
+                await Promise.all(candidateInterviews.map(async (interview) => {
+                  if (!interview.user_id) {
+                    await supabase
+                      .from("interviews")
+                      .update({ user_id: user.id })
+                      .eq("id", interview.id);
+                  }
+                }));
+                
+                setInterviews(candidateInterviews);
+                setJobs(jobsData || []);
+                setApplications([]);
+                setIsLoading(false);
+                return;
+              }
+            }
+          }
+        }
+        
+        // Final fallback: Try name-based search if everything else failed
+        if (!interviewsData?.length) {
+          console.log("Attempting final fallback with name-based search");
+          
+          // Fetch a limited number of interviews and filter on the client side
           const { data: allInterviews, error: allError } = await supabase
             .from("interviews")
             .select("*")
@@ -148,30 +191,38 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
             
           if (allError) {
             console.error("Error fetching all interviews:", allError);
-          } else if (allInterviews?.length) {
-            console.log(`Fetched ${allInterviews.length} interviews for client-side filtering`);
-            
+          } else if (allInterviews?.length && user.email) {
             // Filter interviews that might match our user
             const matchingInterviews = allInterviews.filter(interview => 
-              interview.candidate_name?.toLowerCase().includes(user.email!.toLowerCase()) ||
-              interview.candidate_id === user.id
+              interview.candidate_name?.toLowerCase().includes(user.email!.toLowerCase())
             );
             
             if (matchingInterviews.length) {
               console.log(`Found ${matchingInterviews.length} interviews after client-side filtering`);
-              interviewsData = matchingInterviews;
+              
+              // Also update these matches with user_id for future fast lookups
+              await Promise.all(matchingInterviews.map(async (interview) => {
+                if (!interview.user_id) {
+                  await supabase
+                    .from("interviews")
+                    .update({ user_id: user.id })
+                    .eq("id", interview.id);
+                }
+              }));
+              
+              setInterviews(matchingInterviews);
+              setJobs(jobsData || []);
+              setApplications([]);
+              setIsLoading(false);
+              return;
             }
           }
         }
         
-        // Set interviews or empty array if nothing found
+        // Set interviews from original query if it worked, or empty array if all fallbacks failed
         setInterviews(interviewsData || []);
-        
-        // Since there's no applications table, we can create a mock or placeholder
-        const mockApplications: JobApplication[] = [];
-        
         setJobs(jobsData || []);
-        setApplications(mockApplications);
+        setApplications([]);
       } catch (error: any) {
         console.error("Error fetching dashboard data:", error);
         toast.error("Failed to load dashboard data");

@@ -140,6 +140,7 @@ export type Database = {
           status: string
           tags: string[] | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           applied_date?: string | null
@@ -152,6 +153,7 @@ export type Database = {
           status: string
           tags?: string[] | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           applied_date?: string | null
@@ -164,6 +166,7 @@ export type Database = {
           status?: string
           tags?: string[] | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -314,6 +317,7 @@ export type Database = {
           position: string
           status: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           candidate_id?: string | null
@@ -325,6 +329,7 @@ export type Database = {
           position: string
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           candidate_id?: string | null
@@ -336,6 +341,7 @@ export type Database = {
           position?: string
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -446,6 +452,10 @@ export type Database = {
       get_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      match_candidates_to_users: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
     }
     Enums: {

@@ -78,8 +78,8 @@ export const InterviewsTab = ({
           </div>
         ) : (
           <EmptyState 
-            title="No interviews scheduled" 
-            message="You don't have any upcoming interviews at the moment. If you believe this is an error, try refreshing the data."
+            title="No interviews found" 
+            message="No interviews are scheduled for your email address. Interviews are matched using your exact email address."
             icon={<CalendarIcon className="mx-auto h-10 w-10 text-gray-400 mb-3" />}
             onRefresh={onRefresh}
           />

@@ -62,87 +62,36 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
         
         if (jobsError) throw jobsError;
         
-        // Fetch interviews for this candidate
+        // Fetch interviews for this candidate using EXACT email match only
         console.log("Fetching interviews for user:", user.id, user.email);
         
-        const fetchPromises = [];
-        
-        // Method 1: Using candidate_id direct match
-        if (user.id) {
-          fetchPromises.push(
-            supabase
-              .from("interviews")
-              .select("*")
-              .eq("candidate_id", user.id)
-              .order("date", { ascending: true })
-          );
+        if (!user.email) {
+          console.error("User email is missing");
+          setInterviews([]);
+          setIsLoading(false);
+          return;
         }
         
-        // Method 2: Using candidate_name exact match (email)
-        if (user.email) {
-          fetchPromises.push(
-            supabase
-              .from("interviews")
-              .select("*")
-              .eq("candidate_name", user.email)
-              .order("date", { ascending: true })
-          );
+        // Method: Using candidate_name exact match (email)
+        const { data: interviewsData, error: interviewsError } = await supabase
+          .from("interviews")
+          .select("*")
+          .eq("candidate_name", user.email)
+          .order("date", { ascending: true });
+        
+        if (interviewsError) {
+          console.error("Error fetching interviews:", interviewsError);
+          toast.error("Failed to load interview data");
+          setInterviews([]);
+        } else {
+          console.log(`Found ${interviewsData?.length || 0} interviews for ${user.email}`);
+          setInterviews(interviewsData || []);
         }
-        
-        // Method 3: Using candidate_name with pattern match (first part of email)
-        if (user.email) {
-          const emailUsername = user.email.split("@")[0];
-          fetchPromises.push(
-            supabase
-              .from("interviews")
-              .select("*")
-              .ilike("candidate_name", `%${emailUsername}%`)
-              .order("date", { ascending: true })
-          );
-        }
-        
-        // Method 4: Get all interviews and filter client-side 
-        // (use this as a last resort if the database doesn't have proper indexes)
-        fetchPromises.push(
-          supabase
-            .from("interviews")
-            .select("*")
-            .order("date", { ascending: true })
-            .limit(100) // Limit to avoid fetching too much data
-        );
-        
-        // Execute all fetch methods
-        const results = await Promise.all(fetchPromises);
-        
-        // Log the number of results from each method for debugging
-        results.forEach((result, index) => {
-          console.log(`Method ${index + 1} found ${result.data?.length || 0} interviews`);
-          
-          // If this is the catch-all method, do client-side filtering
-          if (index === 3 && user.email && result.data) {
-            const filteredInterviews = result.data.filter(interview => 
-              interview.candidate_name?.toLowerCase().includes(user.email!.toLowerCase()) ||
-              (user.id && interview.candidate_id === user.id)
-            );
-            console.log(`After client-side filtering: ${filteredInterviews.length} interviews`);
-          }
-        });
-        
-        // Combine all results, removing duplicates by ID
-        const allInterviews = results.flatMap(result => result.data || []);
-        
-        // Remove duplicates by ID
-        const uniqueInterviews = Array.from(
-          new Map(allInterviews.map(item => [item.id, item])).values()
-        );
-        
-        console.log("Total unique interviews found:", uniqueInterviews.length);
         
         // Since there's no applications table, we can create a mock or placeholder
         const mockApplications: JobApplication[] = [];
         
         setJobs(jobsData || []);
-        setInterviews(uniqueInterviews);
         setApplications(mockApplications);
       } catch (error: any) {
         console.error("Error fetching dashboard data:", error);

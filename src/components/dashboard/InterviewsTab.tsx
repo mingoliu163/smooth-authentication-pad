@@ -79,7 +79,7 @@ export const InterviewsTab = ({
         ) : (
           <EmptyState 
             title="No interviews found" 
-            message="No interviews are scheduled for your email address. Interviews are matched using your exact email address."
+            message="No interviews are currently associated with your account. If you believe this is an error, please try refreshing or contact support."
             icon={<CalendarIcon className="mx-auto h-10 w-10 text-gray-400 mb-3" />}
             onRefresh={onRefresh}
           />

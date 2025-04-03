@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,9 +42,11 @@ interface Interview {
 
 interface Candidate {
   id: string;
+  name: string;
   email: string;
-  first_name: string | null;
-  last_name: string | null;
+  user_id?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 interface Interviewer {
@@ -65,11 +66,63 @@ export const InterviewEditDialog = ({
 }: InterviewEditDialogProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editInterview, setEditInterview] = useState<Interview | null>(interview);
+  const [candidatesWithProfiles, setCandidatesWithProfiles] = useState<Candidate[]>([]);
 
   // Update local state when prop changes
   useEffect(() => {
     setEditInterview(interview);
   }, [interview]);
+
+  // Fetch candidate profiles when candidates or open state changes
+  useEffect(() => {
+    const fetchCandidateProfiles = async () => {
+      if (!open || candidates.length === 0) return;
+      
+      try {
+        // Get user_ids from candidates that have them
+        const userIds = candidates
+          .filter(c => c.user_id)
+          .map(c => c.user_id);
+        
+        if (userIds.length === 0) {
+          setCandidatesWithProfiles(candidates);
+          return;
+        }
+        
+        // Fetch profiles for these user_ids
+        const { data: profilesData, error } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", userIds);
+          
+        if (error) throw error;
+        
+        // Map profiles to candidates
+        const enhancedCandidates = candidates.map(candidate => {
+          if (!candidate.user_id) return candidate;
+          
+          const matchingProfile = profilesData?.find(
+            profile => profile.id === candidate.user_id
+          );
+          
+          if (!matchingProfile) return candidate;
+          
+          return {
+            ...candidate,
+            first_name: matchingProfile.first_name,
+            last_name: matchingProfile.last_name
+          };
+        });
+        
+        setCandidatesWithProfiles(enhancedCandidates);
+      } catch (error) {
+        console.error("Error fetching candidate profiles:", error);
+        setCandidatesWithProfiles(candidates);
+      }
+    };
+    
+    fetchCandidateProfiles();
+  }, [open, candidates]);
 
   const handleUpdateInterview = async () => {
     try {
@@ -100,6 +153,17 @@ export const InterviewEditDialog = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const getCandidateDisplayName = (candidate: Candidate) => {
+    // If candidate has profile data (first_name, last_name), use that
+    if (candidate.first_name || candidate.last_name) {
+      const fullName = `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim();
+      return fullName ? `${fullName} (${candidate.email})` : candidate.email;
+    }
+    
+    // Otherwise fall back to just the name or email
+    return candidate.name || candidate.email;
   };
 
   const getFullName = (firstName: string | null, lastName: string | null, email: string) => {
@@ -152,13 +216,9 @@ export const InterviewEditDialog = ({
                 <SelectValue placeholder="Select candidate" />
               </SelectTrigger>
               <SelectContent>
-                {candidates.map((candidate) => (
+                {candidatesWithProfiles.map((candidate) => (
                   <SelectItem key={candidate.id} value={candidate.id}>
-                    {getFullName(
-                      candidate.first_name,
-                      candidate.last_name,
-                      candidate.email
-                    )}
+                    {getCandidateDisplayName(candidate)}
                   </SelectItem>
                 ))}
               </SelectContent>

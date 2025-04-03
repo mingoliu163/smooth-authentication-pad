@@ -47,16 +47,19 @@ interface Interview {
 
 interface Candidate {
   id: string;
+  name: string;
   email: string;
-  first_name: string | null;
-  last_name: string | null;
+  user_id?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 interface Interviewer {
   id: string;
+  name: string;
   email: string;
-  first_name: string | null;
-  last_name: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 interface Exam {

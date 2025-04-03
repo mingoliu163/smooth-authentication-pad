@@ -39,6 +39,7 @@ interface Interviewer {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  email: string;
 }
 
 interface Exam {
@@ -80,7 +81,7 @@ const InterviewManagement = () => {
 
       if (interviewsError) throw interviewsError;
 
-      // Fetch candidates (job seekers)
+      // Fetch candidates (job seekers) with user_id
       const { data: candidatesData, error: candidatesError } = await supabase
         .from("candidates")
         .select("id, name, email, user_id");
@@ -89,16 +90,47 @@ const InterviewManagement = () => {
         console.error("Error fetching candidates:", candidatesError);
         setCandidates([]);
       } else {
-        // Transform the candidates data to match the Candidate interface
-        const formattedCandidates: Candidate[] = (candidatesData || []).map(candidate => ({
-          id: candidate.id,
-          name: candidate.name,
-          email: candidate.email,
-          first_name: null,  // Add these properties to match the Candidate interface
-          last_name: null,   // Add these properties to match the Candidate interface
-          user_id: candidate.user_id
-        }));
-        setCandidates(formattedCandidates);
+        // Get unique user_ids for profile fetch
+        const userIds = candidatesData
+          ?.filter(c => c.user_id)
+          .map(c => c.user_id) || [];
+        
+        // If we have user_ids, fetch corresponding profiles
+        if (userIds.length > 0) {
+          const { data: profilesData, error: profilesError } = await supabase
+            .from("profiles")
+            .select("id, first_name, last_name")
+            .in("id", userIds);
+            
+          if (profilesError) {
+            console.error("Error fetching profiles:", profilesError);
+          } else {
+            // Combine candidate data with profile data
+            const formattedCandidates: Candidate[] = (candidatesData || []).map(candidate => {
+              const profile = profilesData?.find(p => p.id === candidate.user_id);
+              return {
+                id: candidate.id,
+                name: candidate.name,
+                email: candidate.email,
+                first_name: profile?.first_name || null,
+                last_name: profile?.last_name || null,
+                user_id: candidate.user_id
+              };
+            });
+            setCandidates(formattedCandidates);
+          }
+        } else {
+          // Transform the candidates data to match the Candidate interface
+          const formattedCandidates: Candidate[] = (candidatesData || []).map(candidate => ({
+            id: candidate.id,
+            name: candidate.name,
+            email: candidate.email,
+            first_name: null,
+            last_name: null,
+            user_id: candidate.user_id
+          }));
+          setCandidates(formattedCandidates);
+        }
       }
 
       // Fetch potential interviewers (HR and admin users)
@@ -115,7 +147,8 @@ const InterviewManagement = () => {
         const formattedInterviewers: Interviewer[] = (interviewersData || []).map(interviewer => ({
           id: interviewer.id,
           first_name: interviewer.first_name,
-          last_name: interviewer.last_name
+          last_name: interviewer.last_name,
+          email: "" // Since profiles doesn't have email, we provide an empty string
         }));
         setInterviewers(formattedInterviewers);
       }
@@ -165,18 +198,29 @@ const InterviewManagement = () => {
     fetchData();
   }, [isAdmin, isHR, user?.id]);
 
-  // Create a formatted candidates array with name property for InterviewFormDialog
-  const formattedCandidates = candidates.map(candidate => ({
-    id: candidate.id,
-    name: candidate.name || `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() || candidate.email,
-    email: candidate.email
-  }));
+  // Create a formatted candidates array with combined name property for InterviewFormDialog
+  const formattedCandidates = candidates.map(candidate => {
+    const fullName = candidate.first_name || candidate.last_name ? 
+      `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() : 
+      candidate.name;
+      
+    return {
+      id: candidate.id,
+      name: fullName || candidate.email,
+      email: candidate.email,
+      user_id: candidate.user_id,
+      first_name: candidate.first_name,
+      last_name: candidate.last_name
+    };
+  });
 
   // Create a formatted interviewers array for InterviewFormDialog
   const formattedInterviewers = interviewers.map(interviewer => ({
     id: interviewer.id,
     name: `${interviewer.first_name || ''} ${interviewer.last_name || ''}`.trim() || "Unnamed Interviewer",
-    email: "" // Since profiles doesn't have email, we provide an empty string
+    email: interviewer.email,
+    first_name: interviewer.first_name,
+    last_name: interviewer.last_name
   }));
 
   return (

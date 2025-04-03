@@ -8,6 +8,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { InterviewsTab } from "@/components/dashboard/InterviewsTab";
 import { ApplicationsTab } from "@/components/dashboard/ApplicationsTab";
 import { RecommendationsTab } from "@/components/dashboard/RecommendationsTab";
+import { DebugLogger } from "@/components/dashboard/DebugLogger";
 import { toast } from "sonner";
 
 const JobSeekerDashboard = () => {
@@ -31,8 +32,14 @@ const JobSeekerDashboard = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
+  // Add debug logger for development
+  const DEBUG_MODE = import.meta.env.MODE === 'development';
+
   return (
     <div className="container mx-auto py-8 px-4">
+      {DEBUG_MODE && <DebugLogger title="User" data={user} />}
+      {DEBUG_MODE && <DebugLogger title="Interviews" data={interviews} />}
+      
       <DashboardHeader userEmail={user?.email} onSignOut={signOut} />
       
       <Tabs defaultValue="interviews" className="space-y-6">

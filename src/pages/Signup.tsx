@@ -39,12 +39,17 @@ const Signup = () => {
 
   const onSubmit = async (values: z.infer<typeof signupSchema>) => {
     setIsLoading(true);
+    
+    // Create a display name by combining first and last name
+    const displayName = `${values.firstName} ${values.lastName}`.trim();
+    
     await signUp(
       values.email, 
       values.password, 
       values.firstName, 
       values.lastName, 
-      values.role as 'admin' | 'hr' | 'job_seeker'
+      values.role as 'admin' | 'hr' | 'job_seeker',
+      displayName
     );
     setIsLoading(false);
   };

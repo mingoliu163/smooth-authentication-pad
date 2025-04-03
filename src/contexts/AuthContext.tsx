@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Session, User } from "@supabase/supabase-js";
@@ -92,9 +91,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function signUp(email: string, password: string, firstName?: string, lastName?: string, role: UserRole = 'job_seeker') {
+  async function signUp(email: string, password: string, firstName?: string, lastName?: string, role: UserRole = 'job_seeker', displayName?: string) {
     try {
-      console.log("Signing up with:", email, firstName, lastName, role);
+      console.log("Signing up with:", email, firstName, lastName, role, displayName);
       setLoading(true);
       
       // Only job seekers are automatically approved
@@ -109,7 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: { 
             first_name: firstName, 
             last_name: lastName, 
-            role 
+            role,
+            name: displayName // Add the displayName to auth metadata
           }
         }
       });

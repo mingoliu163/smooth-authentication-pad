@@ -17,7 +17,7 @@ interface Interview {
   interviewer_name: string | null;
   position: string;
   status: string;
-  user_id: string | null;
+  user_id: string | null; // Added user_id property
 }
 
 interface Job {
@@ -32,7 +32,7 @@ interface Candidate {
   email: string;
   first_name: string | null;
   last_name: string | null;
-  user_id: string | null;
+  user_id: string | null; // Added user_id property
 }
 
 interface Interviewer {

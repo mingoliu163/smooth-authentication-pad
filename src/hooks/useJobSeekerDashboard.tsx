@@ -31,7 +31,7 @@ interface Interview {
   candidate_name: string;
   position: string;
   status: string;
-  user_id?: string;
+  user_id?: string; // Added user_id to match the database schema
 }
 
 export interface DashboardData {

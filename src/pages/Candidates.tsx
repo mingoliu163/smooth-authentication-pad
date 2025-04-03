@@ -26,7 +26,7 @@ type CandidateFromDB = {
   tags: string[] | null;
   created_at: string;
   updated_at: string;
-  user_id: string | null;
+  user_id: string | null; // Added user_id to match the database schema
 }
 
 const Candidates = () => {
@@ -87,7 +87,7 @@ const Candidates = () => {
         status: mapStatusToAllowedType(candidate.status),
         appliedDate: formatTimeAgo(candidate.applied_date),
         tags: candidate.tags || [],
-        user_id: candidate.user_id
+        user_id: candidate.user_id // Include user_id in the returned data
       }));
     },
   });

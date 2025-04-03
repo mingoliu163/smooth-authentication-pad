@@ -14,6 +14,7 @@ export type CandidateType = {
   status: "New" | "Screening" | "Interview" | "Final Round" | "Offer" | "Rejected";
   appliedDate: string;
   tags: string[];
+  user_id?: string; // Added user_id as an optional field
 };
 
 interface CandidateCardProps {

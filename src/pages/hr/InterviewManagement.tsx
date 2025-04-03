@@ -7,52 +7,12 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { InterviewFormDialog } from "@/components/interviews/InterviewFormDialog";
 import { InterviewsListCard } from "@/components/interviews/InterviewsListCard";
-
-interface Interview {
-  id: string;
-  date: string;
-  candidate_id: string;
-  candidate_name: string;
-  interviewer_id: string | null;
-  interviewer_name: string | null;
-  position: string;
-  status: string;
-  user_id: string | null; // Added user_id property
-}
-
-interface Job {
-  id: string;
-  title: string;
-  company: string;
-}
-
-interface Candidate {
-  id: string;
-  name: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  user_id: string | null; // Added user_id property
-}
-
-interface Interviewer {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string;
-}
-
-interface Exam {
-  id: string;
-  title: string;
-  difficulty: string;
-  category: string;
-}
+import { Interview, Candidate, Interviewer, Exam } from "@/components/interviews/InterviewsTable";
 
 const InterviewManagement = () => {
   const { user, isAdmin, isHR } = useAuth();
   const [interviews, setInterviews] = useState<Interview[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobs, setJobs] = useState<any[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [interviewers, setInterviewers] = useState<Interviewer[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
@@ -81,56 +41,65 @@ const InterviewManagement = () => {
 
       if (interviewsError) throw interviewsError;
 
-      // Fetch candidates (job seekers) with user_id
+      // Strategy for job seekers
+      // 1. Get candidates table data (legacy approach)
       const { data: candidatesData, error: candidatesError } = await supabase
         .from("candidates")
         .select("id, name, email, user_id");
 
       if (candidatesError) {
         console.error("Error fetching candidates:", candidatesError);
-        setCandidates([]);
-      } else {
-        // Get unique user_ids for profile fetch
-        const userIds = candidatesData
-          ?.filter(c => c.user_id)
-          .map(c => c.user_id) || [];
-        
-        // If we have user_ids, fetch corresponding profiles
-        if (userIds.length > 0) {
-          const { data: profilesData, error: profilesError } = await supabase
-            .from("profiles")
-            .select("id, first_name, last_name")
-            .in("id", userIds);
-            
-          if (profilesError) {
-            console.error("Error fetching profiles:", profilesError);
-          } else {
-            // Combine candidate data with profile data
-            const formattedCandidates: Candidate[] = (candidatesData || []).map(candidate => {
-              const profile = profilesData?.find(p => p.id === candidate.user_id);
-              return {
-                id: candidate.id,
-                name: candidate.name,
-                email: candidate.email,
-                first_name: profile?.first_name || null,
-                last_name: profile?.last_name || null,
-                user_id: candidate.user_id
-              };
-            });
-            setCandidates(formattedCandidates);
-          }
-        } else {
-          // Transform the candidates data to match the Candidate interface
-          const formattedCandidates: Candidate[] = (candidatesData || []).map(candidate => ({
+      }
+
+      // 2. Get profiles with job_seeker role
+      const { data: jobSeekerProfiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, role")
+        .eq("role", "job_seeker");
+
+      if (profilesError) {
+        console.error("Error fetching job seeker profiles:", profilesError);
+      }
+
+      // Combine both sources
+      const allCandidates: Candidate[] = [];
+      
+      // Add candidates from candidates table
+      if (candidatesData) {
+        candidatesData.forEach(candidate => {
+          // If the candidate has a user_id, find matching profile
+          const profile = candidate.user_id && jobSeekerProfiles ? 
+            jobSeekerProfiles.find(p => p.id === candidate.user_id) : null;
+          
+          allCandidates.push({
             id: candidate.id,
             name: candidate.name,
             email: candidate.email,
-            first_name: null,
-            last_name: null,
-            user_id: candidate.user_id
-          }));
-          setCandidates(formattedCandidates);
-        }
+            user_id: candidate.user_id,
+            first_name: profile?.first_name || null,
+            last_name: profile?.last_name || null
+          });
+        });
+      }
+      
+      // Add job seekers that might not have a candidate record
+      if (jobSeekerProfiles) {
+        jobSeekerProfiles.forEach(profile => {
+          // Check if this profile is already included via candidates table
+          const existingCandidate = allCandidates.find(c => c.user_id === profile.id);
+          
+          if (!existingCandidate) {
+            // Need to create a new candidate record for this job seeker
+            allCandidates.push({
+              id: profile.id, // Use profile ID temporarily
+              name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unnamed',
+              email: '', // We don't have email from profiles table
+              user_id: profile.id,
+              first_name: profile.first_name,
+              last_name: profile.last_name
+            });
+          }
+        });
       }
 
       // Fetch potential interviewers (HR and admin users)
@@ -148,7 +117,8 @@ const InterviewManagement = () => {
           id: interviewer.id,
           first_name: interviewer.first_name,
           last_name: interviewer.last_name,
-          email: "" // Since profiles doesn't have email, we provide an empty string
+          email: "", // Since profiles doesn't have email, we provide an empty string
+          name: `${interviewer.first_name || ''} ${interviewer.last_name || ''}`.trim() || "Unnamed Interviewer"
         }));
         setInterviewers(formattedInterviewers);
       }
@@ -182,6 +152,7 @@ const InterviewManagement = () => {
 
       setJobs(jobsData || []);
       setInterviews(formattedInterviews);
+      setCandidates(allCandidates);
       setExams(examsData || []);
     } catch (error: any) {
       console.error("Error fetching data:", error);
@@ -214,15 +185,6 @@ const InterviewManagement = () => {
     };
   });
 
-  // Create a formatted interviewers array for InterviewFormDialog
-  const formattedInterviewers = interviewers.map(interviewer => ({
-    id: interviewer.id,
-    name: `${interviewer.first_name || ''} ${interviewer.last_name || ''}`.trim() || "Unnamed Interviewer",
-    email: interviewer.email,
-    first_name: interviewer.first_name,
-    last_name: interviewer.last_name
-  }));
-
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
@@ -230,7 +192,7 @@ const InterviewManagement = () => {
           <h1 className="text-2xl font-bold">Interview Management</h1>
           <InterviewFormDialog 
             candidates={formattedCandidates}
-            interviewers={formattedInterviewers}
+            interviewers={interviewers}
             onInterviewCreated={fetchData}
           />
         </div>
@@ -239,7 +201,7 @@ const InterviewManagement = () => {
           isLoading={isLoading}
           interviews={interviews}
           candidates={formattedCandidates}
-          interviewers={formattedInterviewers}
+          interviewers={interviewers}
           exams={exams}
           onRefresh={fetchData}
         />

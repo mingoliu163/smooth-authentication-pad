@@ -26,15 +26,8 @@ import { InterviewEditDialog } from "./InterviewEditDialog";
 import { InterviewDeleteDialog } from "./InterviewDeleteDialog";
 import { AssignExamsDialog } from "./AssignExamsDialog";
 
-interface InterviewsTableProps {
-  interviews: Interview[];
-  candidates: Candidate[];
-  interviewers: Interviewer[];
-  exams: Exam[];
-  onRefresh: () => void;
-}
-
-interface Interview {
+// Define consistent interfaces
+export interface Interview {
   id: string;
   date: string;
   candidate_id: string;
@@ -43,9 +36,10 @@ interface Interview {
   interviewer_name: string | null;
   position: string;
   status: string;
+  user_id?: string | null;
 }
 
-interface Candidate {
+export interface Candidate {
   id: string;
   name: string;
   email: string;
@@ -54,19 +48,27 @@ interface Candidate {
   last_name?: string | null;
 }
 
-interface Interviewer {
+export interface Interviewer {
   id: string;
   name: string;
   email: string;
-  first_name?: string | null;
-  last_name?: string | null;
+  first_name: string | null;
+  last_name: string | null;
 }
 
-interface Exam {
+export interface Exam {
   id: string;
   title: string;
   difficulty: string;
   category: string;
+}
+
+interface InterviewsTableProps {
+  interviews: Interview[];
+  candidates: Candidate[];
+  interviewers: Interviewer[];
+  exams: Exam[];
+  onRefresh: () => void;
 }
 
 export const InterviewsTable = ({

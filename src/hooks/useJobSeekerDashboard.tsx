@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { UserRole } from "@/types/auth";
 
 interface Job {
   id: string;
@@ -31,7 +32,7 @@ interface Interview {
   candidate_name: string;
   position: string;
   status: string;
-  user_id?: string; // Added user_id to match the database schema
+  user_id?: string | null;
 }
 
 export interface DashboardData {
@@ -42,7 +43,7 @@ export interface DashboardData {
 }
 
 export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -63,37 +64,38 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
         
         if (jobsError) throw jobsError;
 
-        // Main approach: Direct query to find interviews by user_id
-        console.log("Fetching interviews for user:", user.id);
+        console.log(`Fetching interviews for user: ${user.id} with role: ${userRole}`);
         
-        // First, try the direct approach - get interviews directly by user_id
-        let { data: userInterviews, error: userInterviewsError } = await supabase
-          .from("interviews")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("date", { ascending: true });
+        // Check if the user role is job_seeker
+        if (userRole === 'job_seeker') {
+          console.log("User is a job seeker, fetching interviews directly by user_id");
           
-        if (userInterviewsError) {
-          console.error("Error fetching interviews by user_id:", userInterviewsError);
-          userInterviews = [];
-        }
-        
-        console.log(`Found ${userInterviews?.length || 0} interviews with direct user_id match`);
-        
-        // If we found interviews, use them and stop here
-        if (userInterviews && userInterviews.length > 0) {
-          setInterviews(userInterviews);
-          setJobs(jobsData || []);
-          setApplications([]);
-          setIsLoading(false);
-          return;
+          // Direct approach - get interviews directly by user_id
+          const { data: userInterviews, error: userInterviewsError } = await supabase
+            .from("interviews")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("date", { ascending: true });
+            
+          if (userInterviewsError) {
+            console.error("Error fetching interviews by user_id:", userInterviewsError);
+          } else if (userInterviews && userInterviews.length > 0) {
+            console.log(`Found ${userInterviews.length} interviews with direct user_id match`);
+            setInterviews(userInterviews);
+            setJobs(jobsData || []);
+            setApplications([]);
+            setIsLoading(false);
+            return;
+          } else {
+            console.log("No interviews found directly by user_id");
+          }
         }
 
-        // If nothing is found directly, we need to find the candidate record and check interviews
-        // Find the candidate record by user_id
-        console.log("No interviews found directly. Trying to find candidate record by user_id...");
+        // If no direct matches or not a job seeker, try to find by candidate association
+        console.log("Checking for candidate records associated with this user");
         
-        let { data: candidateData, error: candidateError } = await supabase
+        // Find the candidate record by user_id
+        const { data: candidateData, error: candidateError } = await supabase
           .from("candidates")
           .select("id, name, email, user_id")
           .eq("user_id", user.id)
@@ -101,11 +103,7 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
           
         if (candidateError) {
           console.error("Error finding candidate by user_id:", candidateError);
-          candidateData = null;
-        }
-        
-        // If candidate is found, try to get their interviews
-        if (candidateData) {
+        } else if (candidateData) {
           console.log("Found candidate by user_id:", candidateData);
           
           // Get interviews for this candidate
@@ -135,14 +133,19 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
             setApplications([]);
             setIsLoading(false);
             return;
+          } else {
+            console.log("No interviews found for this candidate ID");
           }
+        } else {
+          console.log("No candidate record found with this user_id");
         }
         
-        // If we're here, we didn't find a candidate by user_id, so try by email
+        // If we're here, try by email
         console.log("Attempting to find candidate by email:", user.email);
         
         if (user.email) {
-          let { data: emailCandidate, error: emailCandidateError } = await supabase
+          // Try to find by email
+          const { data: emailCandidate, error: emailCandidateError } = await supabase
             .from("candidates")
             .select("id, name, email, user_id")
             .eq("email", user.email)
@@ -150,10 +153,7 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
             
           if (emailCandidateError) {
             console.error("Error finding candidate by email:", emailCandidateError);
-            emailCandidate = null;
-          }
-          
-          if (emailCandidate) {
+          } else if (emailCandidate) {
             console.log("Found candidate by email:", emailCandidate);
             
             // Update candidate record with user_id if not already set
@@ -192,15 +192,17 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
               setApplications([]);
               setIsLoading(false);
               return;
+            } else {
+              console.log("No interviews found for this email-matched candidate");
             }
+          } else {
+            console.log("No candidate found with this email");
           }
-        }
-        
-        // Last attempt: check by candidate name that might include the email
-        // This is a fallback for legacy data
-        console.log("Performing final check for interviews by candidate name containing email parts");
-        
-        if (user.email) {
+          
+          // Last attempt: check by candidate name that might include the email
+          // This is a fallback for legacy data
+          console.log("Performing final check for interviews by candidate name containing email parts");
+          
           // Extract name part from email (e.g., "john" from "john@example.com")
           const emailNamePart = user.email.split('@')[0];
           
@@ -239,11 +241,14 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
               setApplications([]);
               setIsLoading(false);
               return;
+            } else {
+              console.log("No interviews found matching candidate name");
             }
           }
         }
         
         // Finally, just ensure we return something even if nothing was found
+        console.log("No interviews found for this user through any method");
         setInterviews([]);
         setJobs(jobsData || []);
         setApplications([]);
@@ -257,7 +262,7 @@ export const useJobSeekerDashboard = (refreshTrigger = 0): DashboardData => {
     };
     
     fetchDashboardData();
-  }, [user, refreshTrigger]);
+  }, [user, userRole, refreshTrigger]);
 
   return { jobs, applications, interviews, isLoading };
 };

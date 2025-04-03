@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Interview, Candidate, Interviewer } from "./InterviewsTable";
 
 interface InterviewEditDialogProps {
   open: boolean;
@@ -27,33 +28,6 @@ interface InterviewEditDialogProps {
   candidates: Candidate[];
   interviewers: Interviewer[];
   onSuccess: () => void;
-}
-
-interface Interview {
-  id: string;
-  date: string;
-  candidate_id: string;
-  candidate_name: string;
-  interviewer_id: string | null;
-  interviewer_name: string | null;
-  position: string;
-  status: string;
-}
-
-interface Candidate {
-  id: string;
-  name: string;
-  email: string;
-  user_id?: string | null;
-  first_name?: string | null;
-  last_name?: string | null;
-}
-
-interface Interviewer {
-  id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
 }
 
 export const InterviewEditDialog = ({

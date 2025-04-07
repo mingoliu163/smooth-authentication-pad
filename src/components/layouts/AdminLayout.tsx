@@ -13,7 +13,8 @@ import {
   BriefcaseBusiness,
   Calendar,
   Book,
-  FileText
+  FileText,
+  UserRound
 } from "lucide-react";
 import {
   Sheet,
@@ -133,9 +134,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </div>
           <div className="p-4 border-t border-gray-800">
             <div className="flex items-center">
-              <div className="ml-3">
-                <p className="text-sm font-medium text-white">{user?.email}</p>
-                <p className="text-xs text-gray-300">{userRole?.charAt(0).toUpperCase() + userRole?.slice(1) || 'User'}</p>
+              <div className="flex-1">
+                <Link to="/profile" className="group flex items-center hover:bg-gray-800 p-2 rounded-md transition-colors">
+                  <UserRound className="h-5 w-5 text-gray-400 group-hover:text-gray-300 mr-2" />
+                  <div>
+                    <p className="text-sm font-medium text-white">{user?.email}</p>
+                    <p className="text-xs text-gray-300">{userRole?.charAt(0).toUpperCase() + userRole?.slice(1) || 'User'}</p>
+                  </div>
+                </Link>
               </div>
             </div>
             <Button
@@ -181,6 +187,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                   <span className="ml-3">{link.name}</span>
                 </Link>
               ))}
+              <Link
+                to="/profile"
+                className="flex items-center px-4 py-3 mt-4 text-sm rounded-md bg-gray-800 text-white"
+                onClick={() => setOpen(false)}
+              >
+                <UserRound className="h-4 w-4 mr-3" />
+                <div>
+                  <p className="font-medium">{user?.email}</p>
+                  <p className="text-xs text-gray-300">{userRole?.charAt(0).toUpperCase() + userRole?.slice(1) || 'User'}</p>
+                </div>
+              </Link>
               <Button
                 variant="ghost"
                 className="justify-start text-gray-300 hover:text-white hover:bg-gray-700 mt-4"

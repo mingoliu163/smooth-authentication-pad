@@ -85,11 +85,51 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function uploadAvatar(file: File) {
+    try {
+      if (!user || !file) return null;
+      
+      // Create a unique file path for the avatar
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+      
+      // Upload the file to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+      
+      if (uploadError) {
+        toast.error(`Error uploading avatar: ${uploadError.message}`);
+        return null;
+      }
+      
+      // Get the public URL for the file
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+      
+      if (!data.publicUrl) {
+        toast.error("Error getting public URL for avatar");
+        return null;
+      }
+      
+      // Update the profile with the new avatar URL
+      await updateProfile({ avatar_url: data.publicUrl });
+      toast.success("Avatar updated successfully");
+      
+      return data.publicUrl;
+    } catch (error: any) {
+      toast.error(error.message || "An error occurred while uploading avatar");
+      return null;
+    }
+  }
+
   const value = {
     profile,
     userRole,
     loading,
     updateProfile,
+    uploadAvatar,
     isAdmin,
     isHR,
     isJobSeeker,

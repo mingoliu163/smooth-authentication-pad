@@ -27,6 +27,7 @@ export type ProfileContextType = {
   userRole: UserRole | null;
   loading: boolean;
   updateProfile: (profileData: Partial<Profile>) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<string | null>;
   isAdmin: () => boolean;
   isHR: () => boolean;
   isJobSeeker: () => boolean;

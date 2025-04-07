@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,11 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Upload } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const profileSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
@@ -21,8 +23,10 @@ const profileSchema = z.object({
 });
 
 const Profile = () => {
-  const { user, profile, updateProfile, signOut } = useAuth();
+  const { user, profile, updateProfile, uploadAvatar, signOut } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const form = useForm<z.infer<typeof profileSchema>>({
@@ -35,8 +39,8 @@ const Profile = () => {
     }
   });
 
-  // Update form when profile changes
-  useState(() => {
+  // Update form and avatar URL when profile changes
+  useEffect(() => {
     if (profile) {
       form.reset({
         first_name: profile.first_name || "",
@@ -44,13 +48,44 @@ const Profile = () => {
         bio: profile.bio || "",
         avatar_url: profile.avatar_url || ""
       });
+      setAvatarUrl(profile.avatar_url);
     }
-  });
+  }, [profile, form.reset]);
 
   const onSubmit = async (values: z.infer<typeof profileSchema>) => {
     setIsLoading(true);
     await updateProfile(values);
     setIsLoading(false);
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    const fileSize = file.size / 1024 / 1024; // in MB
+    
+    // File validation
+    if (fileSize > 5) {
+      toast.error("File size should not exceed 5MB");
+      return;
+    }
+    
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+    
+    setIsUploading(true);
+    try {
+      const url = await uploadAvatar(file);
+      if (url) {
+        setAvatarUrl(url);
+        form.setValue("avatar_url", url);
+      }
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   if (!user) {
@@ -82,15 +117,44 @@ const Profile = () => {
               <CardTitle>Profile Picture</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-4">
-              <Avatar className="h-32 w-32">
-                <AvatarImage src={profile?.avatar_url || ""} />
-                <AvatarFallback className="text-3xl">
-                  {profile?.first_name?.[0]}{profile?.last_name?.[0]}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative group">
+                <Avatar className="h-32 w-32">
+                  <AvatarImage src={avatarUrl || ""} />
+                  <AvatarFallback className="text-3xl">
+                    {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                  </AvatarFallback>
+                </Avatar>
+                
+                {isUploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
+                    <Loader2 className="h-8 w-8 text-white animate-spin" />
+                  </div>
+                )}
+              </div>
+              
               <div className="text-center">
                 <p className="font-medium text-lg">{profile?.first_name} {profile?.last_name}</p>
                 <p className="text-muted-foreground text-sm">{user.email}</p>
+              </div>
+              
+              <div className="w-full">
+                <label htmlFor="avatar-upload" className="cursor-pointer">
+                  <div className="flex items-center justify-center w-full p-2 border-2 border-dashed border-gray-300 rounded-md hover:border-gray-400 transition-colors">
+                    <Upload className="h-4 w-4 mr-2" />
+                    <span className="text-sm font-medium">Upload New Photo</span>
+                  </div>
+                  <input 
+                    id="avatar-upload" 
+                    type="file" 
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                    disabled={isUploading}
+                  />
+                </label>
+                <p className="text-xs text-center mt-2 text-gray-500">
+                  JPG, PNG or GIF. Max 5MB.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -136,20 +200,6 @@ const Profile = () => {
                   
                   <FormField
                     control={form.control}
-                    name="avatar_url"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Profile Picture URL</FormLabel>
-                        <FormControl>
-                          <Input placeholder="https://example.com/avatar.jpg" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
                     name="bio"
                     render={({ field }) => (
                       <FormItem>
@@ -159,6 +209,7 @@ const Profile = () => {
                             placeholder="Tell us about yourself" 
                             className="min-h-[100px]" 
                             {...field} 
+                            value={field.value || ""}
                           />
                         </FormControl>
                         <FormMessage />

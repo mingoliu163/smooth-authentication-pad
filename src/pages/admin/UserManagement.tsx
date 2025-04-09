@@ -252,7 +252,6 @@ const UserManagement = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
@@ -262,7 +261,6 @@ const UserManagement = () => {
                 <TableBody>
                   {users.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell>{user.email}</TableCell>
                       <TableCell>
                         {user.first_name} {user.last_name}
                       </TableCell>
@@ -445,7 +443,7 @@ const UserManagement = () => {
           {editingUser && (
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="editEmail">User</Label>
+                <Label htmlFor="editEmail">Email</Label>
                 <Input
                   id="editEmail"
                   type="text"

@@ -28,7 +28,7 @@ serve(async (req) => {
     // For each profile, get the auth user data to get the display name
     const enhancedProfiles = await Promise.all(
       profiles.map(async (profile) => {
-        // Get user data from auth.users for this profile
+        // Get user data directly from auth.users using admin API
         const { data: userData, error: userError } = await supabase.auth.admin.getUserById(profile.id);
         
         if (userError || !userData.user) {
@@ -42,12 +42,15 @@ serve(async (req) => {
           };
         }
         
-        // Get display name from user metadata
+        // Explicitly prioritize getting display name from user metadata
         const user = userData.user;
         const display_name = 
+          user.user_metadata?.display_name || 
           user.user_metadata?.name || 
-          user.user_metadata?.full_name || 
-          user.user_metadata?.display_name;
+          user.user_metadata?.full_name;
+        
+        console.log(`User ${profile.id} metadata:`, user.user_metadata);
+        console.log(`Display name extracted:`, display_name);
         
         return {
           ...profile,

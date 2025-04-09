@@ -16,7 +16,7 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch profiles first to get all user data
+    // Fetch all profiles first
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('*');
@@ -25,18 +25,14 @@ serve(async (req) => {
       throw profilesError;
     }
 
-    // For each profile, get the corresponding user data from auth.users
+    // For each profile, get the auth user data to get the display name
     const enhancedProfiles = await Promise.all(
       profiles.map(async (profile) => {
-        // Query auth.users for this profile
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('email, raw_user_meta_data')
-          .eq('id', profile.id)
-          .single();
+        // Get user data from auth.users for this profile
+        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(profile.id);
         
-        if (userError) {
-          console.error(`Error fetching user ${profile.id}:`, userError);
+        if (userError || !userData.user) {
+          console.error(`Error fetching auth user ${profile.id}:`, userError);
           return {
             ...profile,
             email: 'unknown@example.com',
@@ -46,18 +42,20 @@ serve(async (req) => {
           };
         }
         
-        // Get display name from raw_user_meta_data
-        const display_name = userData.raw_user_meta_data?.name || 
-          userData.raw_user_meta_data?.full_name ||
-          userData.raw_user_meta_data?.display_name;
+        // Get display name from user metadata
+        const user = userData.user;
+        const display_name = 
+          user.user_metadata?.name || 
+          user.user_metadata?.full_name || 
+          user.user_metadata?.display_name;
         
         return {
           ...profile,
-          email: userData.email,
+          email: user.email || 'unknown@example.com',
           display_name: display_name || 
             (profile.first_name 
               ? `${profile.first_name} ${profile.last_name || ''}`.trim() 
-              : 'User')
+              : 'Unknown User')
         };
       })
     );

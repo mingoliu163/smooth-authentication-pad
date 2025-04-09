@@ -29,7 +29,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { 
@@ -98,11 +97,6 @@ const UserManagement = () => {
         throw error;
       }
       
-      // To update display name, we would need to update user metadata
-      // This requires admin privileges and is typically done through Edge Functions
-      // Here, we'll log this limitation
-      console.log("Note: Display name updates require server-side functions");
-      
       toast.success("User updated successfully");
       setIsEditDialogOpen(false);
       setEditingUser(null);
@@ -147,7 +141,7 @@ const UserManagement = () => {
                 <TableBody>
                   {users.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell>{user.display_name || "Unknown User"}</TableCell>
+                      <TableCell>{user.display_name}</TableCell>
                       <TableCell>
                         <Badge 
                           variant="outline" 
@@ -229,6 +223,10 @@ const UserManagement = () => {
               <div>
                 <label className="text-sm font-medium">Email</label>
                 <Input value={editingUser.email} disabled />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Display Name</label>
+                <Input value={editingUser.display_name} disabled />
               </div>
               <div>
                 <label className="text-sm font-medium">Role</label>

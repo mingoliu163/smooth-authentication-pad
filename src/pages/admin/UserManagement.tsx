@@ -88,41 +88,27 @@ const UserManagement = () => {
     try {
       // Create display name from first and last name
       const displayName = `${newUser.first_name} ${newUser.last_name}`.trim();
-      setNewUser(prev => ({ ...prev, display_name: displayName }));
       
-      // Register the user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: newUser.email,
-        password: newUser.password,
-        email_confirm: true,
-        user_metadata: {
-          first_name: newUser.first_name,
-          last_name: newUser.last_name,
-          display_name: displayName
+      console.log("Creating new user with data:", {
+        ...newUser,
+        displayName
+      });
+      
+      // Call the Edge Function to create the user
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: {
+          email: newUser.email,
+          password: newUser.password,
+          firstName: newUser.first_name,
+          lastName: newUser.last_name,
+          role: newUser.role,
+          approved: newUser.approved,
+          displayName
         }
       });
       
-      if (authError) {
-        throw authError;
-      }
-      
-      if (!authData.user) {
-        throw new Error("Failed to create user");
-      }
-      
-      // Update the profile with role and approval status
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          first_name: newUser.first_name,
-          last_name: newUser.last_name,
-          role: newUser.role,
-          approved: newUser.approved
-        })
-        .eq("id", authData.user.id);
-        
-      if (profileError) {
-        throw profileError;
+      if (error) {
+        throw error;
       }
       
       toast.success("User created successfully");

@@ -11,6 +11,7 @@ import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
 import Jobs from "./pages/Jobs";
 import JobDetail from "./pages/JobDetail";
+import Apply from "./pages/Apply"; // Import the Apply page
 import { CombinedAuthProvider } from "./contexts/CombinedAuthProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -122,6 +123,7 @@ const App = () => (
             {/* Public Job Routes */}
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/:id" element={<JobDetail />} />
+            <Route path="/apply/:id" element={<Apply />} /> {/* Add new route for job application */}
             
             {/* Shared Routes with different access levels */}
             <Route path="/questionnaires" element={

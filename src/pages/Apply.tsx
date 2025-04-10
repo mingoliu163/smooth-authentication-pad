@@ -1,50 +1,65 @@
 
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ApplicationForm from "@/components/ApplicationForm";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
+import { toast } from "sonner";
 
-// Sample job data - in a real app, you would fetch this based on the ID
-const jobsData = {
-  "1": {
-    id: "1",
-    title: "Senior Frontend Developer",
-    company: "TechCorp Inc.",
-  },
-  "2": {
-    id: "2",
-    title: "Product Manager",
-    company: "Innovation Labs",
-  },
-  "3": {
-    id: "3",
-    title: "UX/UI Designer",
-    company: "Creative Solutions",
-  },
-  "4": {
-    id: "4",
-    title: "DevOps Engineer",
-    company: "CloudSystems",
-  },
-  "5": {
-    id: "5",
-    title: "Marketing Specialist",
-    company: "GrowthBrand",
-  },
-  "6": {
-    id: "6",
-    title: "Backend Developer",
-    company: "DataSystems Inc.",
-  },
-};
+interface Job {
+  id: string;
+  title: string;
+  company: string;
+  is_active: boolean;
+}
 
 const Apply = () => {
   const { id } = useParams<{ id: string }>();
-  const job = id && id in jobsData ? jobsData[id as keyof typeof jobsData] : null;
+  const navigate = useNavigate();
 
-  if (!job) {
+  const { data: job, isLoading, error } = useQuery({
+    queryKey: ["job-apply", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("jobs")
+        .select("id, title, company, is_active")
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        toast.error("Error loading job details");
+        throw error;
+      }
+
+      return data as Job;
+    },
+  });
+
+  // Redirect if job is not active
+  useEffect(() => {
+    if (job && !job.is_active) {
+      toast.error("This job is no longer accepting applications");
+      navigate(`/jobs/${id}`);
+    }
+  }, [job, id, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-grow flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error || !job) {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />

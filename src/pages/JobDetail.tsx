@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -8,7 +9,7 @@ import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { Briefcase, MapPin, Calendar, Building, Clock, Award, CheckCircle } from "lucide-react";
+import { Briefcase, MapPin, Calendar, Building, Clock, Award } from "lucide-react";
 import { Job } from "@/pages/hr/JobManagement";
 
 const JobDetail = () => {
@@ -43,14 +44,10 @@ const JobDetail = () => {
     }
   };
 
+  // Modified this function to redirect to the apply page instead of showing a toast
   const handleApply = () => {
-    setIsApplying(true);
-    // In a real application, this would navigate to an application form
-    // or open an application dialog
-    setTimeout(() => {
-      toast.success("Your application has been submitted!");
-      setIsApplying(false);
-    }, 1500);
+    if (!job?.is_active) return;
+    window.location.href = `/apply/${id}`;
   };
 
   if (isLoading) {
@@ -141,22 +138,20 @@ const JobDetail = () => {
               </div>
               
               <div className="mt-4 sm:mt-0">
-                <Button 
-                  onClick={handleApply}
-                  disabled={isApplying || !job.is_active}
-                  className="w-full sm:w-auto"
-                >
-                  {isApplying ? (
-                    <span className="flex items-center gap-2">
-                      <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></div>
-                      Applying...
-                    </span>
-                  ) : job.is_active ? (
-                    "Apply Now"
-                  ) : (
-                    "Applications Closed"
-                  )}
-                </Button>
+                {job.is_active ? (
+                  <Link to={`/apply/${id}`}>
+                    <Button 
+                      disabled={isApplying}
+                      className="w-full sm:w-auto"
+                    >
+                      {isApplying ? "Applying..." : "Apply Now"}
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button disabled className="w-full sm:w-auto">
+                    Applications Closed
+                  </Button>
+                )}
               </div>
             </div>
             
@@ -210,13 +205,20 @@ const JobDetail = () => {
                 <p className="text-gray-600 mt-1">Submit your application now</p>
               </div>
               <div className="mt-4 sm:mt-0">
-                <Button 
-                  onClick={handleApply}
-                  disabled={isApplying || !job.is_active}
-                  className="w-full sm:w-auto"
-                >
-                  {isApplying ? "Applying..." : job.is_active ? "Apply Now" : "Applications Closed"}
-                </Button>
+                {job.is_active ? (
+                  <Link to={`/apply/${id}`}>
+                    <Button 
+                      disabled={isApplying}
+                      className="w-full sm:w-auto"
+                    >
+                      {isApplying ? "Applying..." : "Apply Now"}
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button disabled className="w-full sm:w-auto">
+                    Applications Closed
+                  </Button>
+                )}
               </div>
             </div>
           </div>

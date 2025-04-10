@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, FileUp, File, X } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -19,14 +19,18 @@ const profileSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
   bio: z.string().optional(),
-  avatar_url: z.string().optional()
+  avatar_url: z.string().optional(),
+  resume_url: z.string().optional()
 });
 
 const Profile = () => {
-  const { user, profile, updateProfile, uploadAvatar, signOut } = useAuth();
+  const { user, profile, updateProfile, uploadAvatar, uploadResume, signOut } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isResumeUploading, setIsResumeUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [resumeUrl, setResumeUrl] = useState<string | null>(null);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const form = useForm<z.infer<typeof profileSchema>>({
@@ -35,7 +39,8 @@ const Profile = () => {
       first_name: profile?.first_name || "",
       last_name: profile?.last_name || "",
       bio: profile?.bio || "",
-      avatar_url: profile?.avatar_url || ""
+      avatar_url: profile?.avatar_url || "",
+      resume_url: profile?.resume_url || ""
     }
   });
 
@@ -46,9 +51,20 @@ const Profile = () => {
         first_name: profile.first_name || "",
         last_name: profile.last_name || "",
         bio: profile.bio || "",
-        avatar_url: profile.avatar_url || ""
+        avatar_url: profile.avatar_url || "",
+        resume_url: profile.resume_url || ""
       });
       setAvatarUrl(profile.avatar_url);
+      setResumeUrl(profile.resume_url);
+      
+      // Extract filename from resume URL if it exists
+      if (profile.resume_url) {
+        const urlParts = profile.resume_url.split('/');
+        const fullFileName = urlParts[urlParts.length - 1];
+        // Remove timestamp from filename
+        const cleanFileName = fullFileName.split('_').slice(1).join('_');
+        setResumeFileName(cleanFileName);
+      }
     }
   }, [profile, form.reset]);
 
@@ -86,6 +102,33 @@ const Profile = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleResumeUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    setIsResumeUploading(true);
+    
+    try {
+      const url = await uploadResume(file);
+      if (url) {
+        setResumeUrl(url);
+        setResumeFileName(file.name);
+        form.setValue("resume_url", url);
+      }
+    } finally {
+      setIsResumeUploading(false);
+    }
+  };
+
+  const removeResume = async () => {
+    setResumeUrl(null);
+    setResumeFileName(null);
+    form.setValue("resume_url", "");
+    await updateProfile({ resume_url: null });
+    toast.success("Resume removed successfully");
   };
 
   if (!user) {
@@ -156,6 +199,68 @@ const Profile = () => {
                   JPG, PNG or GIF. Max 5MB.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+          
+          {/* Resume Upload Card */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Resume</CardTitle>
+              <CardDescription>Upload your resume for job applications</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center space-y-4">
+              {resumeUrl && resumeFileName ? (
+                <div className="w-full">
+                  <div className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
+                    <div className="flex items-center space-x-2">
+                      <File className="h-6 w-6 text-blue-500" />
+                      <div>
+                        <p className="text-sm font-medium truncate max-w-[150px]">{resumeFileName}</p>
+                        <a 
+                          href={resumeUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          View resume
+                        </a>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={removeResume}
+                      title="Remove resume"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full">
+                  <label htmlFor="resume-upload" className="cursor-pointer">
+                    <div className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-gray-300 rounded-md hover:border-gray-400 transition-colors">
+                      <FileUp className="h-8 w-8 mb-2 text-gray-400" />
+                      <span className="text-sm font-medium">Upload Resume</span>
+                      {isResumeUploading ? (
+                        <Loader2 className="h-5 w-5 mt-2 animate-spin" />
+                      ) : (
+                        <p className="text-xs text-center mt-2 text-gray-500">
+                          PDF, DOC or DOCX. Max 5MB.
+                        </p>
+                      )}
+                    </div>
+                    <input 
+                      id="resume-upload" 
+                      type="file" 
+                      accept=".pdf,.doc,.docx" 
+                      className="hidden"
+                      onChange={handleResumeUpload}
+                      disabled={isResumeUploading}
+                    />
+                  </label>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -124,12 +124,67 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function uploadResume(file: File) {
+    try {
+      if (!user || !file) return null;
+      
+      // Check file type
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const allowedTypes = ['pdf', 'doc', 'docx'];
+      
+      if (!fileExt || !allowedTypes.includes(fileExt)) {
+        toast.error("Only PDF, DOC, and DOCX files are allowed");
+        return null;
+      }
+      
+      // Check file size (max 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+      if (file.size > maxSize) {
+        toast.error("File size should not exceed 5MB");
+        return null;
+      }
+      
+      // Create a unique file path for the resume
+      const filePath = `${user.id}/${Date.now()}_resume.${fileExt}`;
+      
+      // Upload the file to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('resumes')
+        .upload(filePath, file, { upsert: true });
+      
+      if (uploadError) {
+        toast.error(`Error uploading resume: ${uploadError.message}`);
+        return null;
+      }
+      
+      // Get the URL for the file
+      const { data } = supabase.storage
+        .from('resumes')
+        .getPublicUrl(filePath);
+      
+      if (!data.publicUrl) {
+        toast.error("Error getting URL for resume");
+        return null;
+      }
+      
+      // Update the profile with the new resume URL
+      await updateProfile({ resume_url: data.publicUrl });
+      toast.success("Resume uploaded successfully");
+      
+      return data.publicUrl;
+    } catch (error: any) {
+      toast.error(error.message || "An error occurred while uploading resume");
+      return null;
+    }
+  }
+
   const value = {
     profile,
     userRole,
     loading,
     updateProfile,
     uploadAvatar,
+    uploadResume,
     isAdmin,
     isHR,
     isJobSeeker,

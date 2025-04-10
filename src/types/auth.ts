@@ -11,6 +11,7 @@ export type Profile = {
   avatar_url: string | null;
   role: UserRole;
   approved: boolean;
+  resume_url: string | null;
 };
 
 export type AuthContextType = {
@@ -28,6 +29,7 @@ export type ProfileContextType = {
   loading: boolean;
   updateProfile: (profileData: Partial<Profile>) => Promise<void>;
   uploadAvatar: (file: File) => Promise<string | null>;
+  uploadResume: (file: File) => Promise<string | null>;
   isAdmin: () => boolean;
   isHR: () => boolean;
   isJobSeeker: () => boolean;

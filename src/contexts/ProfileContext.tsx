@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
@@ -41,7 +40,20 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       }
 
       console.log("Profile data:", data);
-      setProfile(data as Profile);
+      
+      // Explicitly cast the data to Profile type with resume_url included
+      const profileData: Profile = {
+        id: data.id,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        bio: data.bio,
+        avatar_url: data.avatar_url,
+        role: data.role || 'job_seeker',
+        approved: data.approved,
+        resume_url: data.resume_url
+      };
+      
+      setProfile(profileData);
       setUserRole(data.role || 'job_seeker');
       
       // Log role for debugging
@@ -62,7 +74,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     if (!userRole) return false;
     return requiredRoles.includes(userRole);
   };
-
+  
   async function updateProfile(profileData: Partial<Profile>) {
     try {
       if (!user) return;

@@ -55,6 +55,16 @@ const UserManagement = () => {
   const [editingUser, setEditingUser] = useState<EnhancedProfile | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState<boolean>(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState<boolean>(false);
+  const [newUser, setNewUser] = useState({
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+    role: 'job_seeker' as UserRole,
+    approved: false,
+    display_name: ''
+  });
 
   const fetchUsers = async () => {
     try {
@@ -113,12 +123,76 @@ const UserManagement = () => {
     setIsDeleteDialogOpen(false);
   };
 
+  const handleAddUser = async () => {
+    try {
+      // Create display name from first and last name
+      const displayName = `${newUser.first_name} ${newUser.last_name}`.trim();
+      setNewUser(prev => ({ ...prev, display_name: displayName }));
+      
+      // Register the user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: newUser.email,
+        password: newUser.password,
+        email_confirm: true,
+        user_metadata: {
+          first_name: newUser.first_name,
+          last_name: newUser.last_name,
+          display_name: displayName
+        }
+      });
+      
+      if (authError) {
+        throw authError;
+      }
+      
+      if (!authData.user) {
+        throw new Error("Failed to create user");
+      }
+      
+      // Update the profile with role and approval status
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          first_name: newUser.first_name,
+          last_name: newUser.last_name,
+          role: newUser.role,
+          approved: newUser.approved
+        })
+        .eq("id", authData.user.id);
+        
+      if (profileError) {
+        throw profileError;
+      }
+      
+      toast.success("User created successfully");
+      setIsAddUserDialogOpen(false);
+      setNewUser({
+        email: '',
+        password: '',
+        first_name: '',
+        last_name: '',
+        role: 'job_seeker',
+        approved: false,
+        display_name: ''
+      });
+      fetchUsers();
+    } catch (error: any) {
+      console.error("Error creating user:", error);
+      toast.error(error.message || "Failed to create user");
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setNewUser(prev => ({ ...prev, [name]: value }));
+  };
+
   return (
     <AdminLayout>
       <div className="container mx-auto p-4">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">User Management</h1>
-          <Button>Add User</Button>
+          <Button onClick={() => setIsAddUserDialogOpen(true)}>Add User</Button>
         </div>
 
         <div className="bg-white rounded-lg shadow">
@@ -272,6 +346,80 @@ const UserManagement = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDeleteUser}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add User Dialog */}
+      <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">First Name</label>
+                <Input 
+                  name="first_name"
+                  value={newUser.first_name} 
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Last Name</label>
+                <Input 
+                  name="last_name"
+                  value={newUser.last_name} 
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Email</label>
+              <Input 
+                name="email"
+                type="email"
+                value={newUser.email} 
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Password</label>
+              <Input 
+                name="password"
+                type="password" 
+                value={newUser.password} 
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Role</label>
+              <Select 
+                value={newUser.role} 
+                onValueChange={value => setNewUser({...newUser, role: value as UserRole})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                  <SelectItem value="hr">HR Professional</SelectItem>
+                  <SelectItem value="job_seeker">Job Seeker</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch 
+                checked={newUser.approved} 
+                onCheckedChange={checked => setNewUser({...newUser, approved: checked})}
+              />
+              <label>Approved</label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddUser}>Create User</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

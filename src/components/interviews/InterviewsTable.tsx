@@ -21,10 +21,12 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  Briefcase,
 } from "lucide-react";
 import { InterviewEditDialog } from "./InterviewEditDialog";
 import { InterviewDeleteDialog } from "./InterviewDeleteDialog";
 import { AssignExamsDialog } from "./AssignExamsDialog";
+import { Link } from "react-router-dom";
 
 // Define consistent interfaces
 export interface Interview {
@@ -37,6 +39,16 @@ export interface Interview {
   position: string;
   status: string;
   user_id?: string | null;
+  settings?: {
+    interview_mode?: string;
+    interview_type?: string;
+    environment?: string;
+    lighting?: string;
+    experience_level?: string;
+    ai_technical_test?: boolean;
+    personality_test?: boolean;
+    notes?: string;
+  };
 }
 
 export interface Candidate {
@@ -104,6 +116,7 @@ export const InterviewsTable = ({
               <TableHead>Interviewer</TableHead>
               <TableHead>Date & Time</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -136,8 +149,27 @@ export const InterviewsTable = ({
                     {interview.status}
                   </span>
                 </TableCell>
+                <TableCell>
+                  {interview.settings?.interview_type ? (
+                    <span className="capitalize">{interview.settings.interview_type}</span>
+                  ) : (
+                    "Standard"
+                  )}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                    >
+                      <Link to={`/interviews/${interview.id}`}>
+                        <Briefcase className="h-4 w-4" />
+                        <span className="sr-only md:not-sr-only md:ml-2">
+                          View
+                        </span>
+                      </Link>
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

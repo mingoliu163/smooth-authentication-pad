@@ -29,7 +29,7 @@ const InterviewManagement = () => {
 
       if (jobsError) throw jobsError;
 
-      // Fetch interviews with proper relationships
+      // Fetch interviews with proper relationships and settings
       const { data: interviewsData, error: interviewsError } = await supabase
         .from("interviews")
         .select(`
@@ -146,7 +146,8 @@ const InterviewManagement = () => {
             null,
           position: interview.position,
           status: interview.status,
-          user_id: interview.user_id || candidate?.user_id || null
+          user_id: interview.user_id || candidate?.user_id || null,
+          settings: interview.settings || {}
         };
       });
 

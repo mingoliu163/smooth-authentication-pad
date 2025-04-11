@@ -1,212 +1,274 @@
 
-import { useState, useEffect, useRef } from "react";
-import { Textarea } from "@/components/ui/textarea";
+import React, { useState, useRef, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Bot, RefreshCw } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Mic, Send, Video, X } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
 
 interface AIChatProps {
-  selectedExam: {
-    id: string;
-    title: string;
-    difficulty: string;
-    category: string;
-    description: string | null;
-  } | null;
+  interviewId: string;
+  candidateName: string;
+  position: string;
+  settings: {
+    language?: string;
+    interviewer_style?: string;
+    stress_level?: string;
+    virtual_background?: string;
+    interview_type?: string;
+    experience_level?: string;
+  };
 }
 
-interface AIMessage {
-  role: "assistant" | "user";
-  content: string;
-}
-
-export const AIChat = ({ selectedExam }: AIChatProps) => {
-  const [messages, setMessages] = useState<AIMessage[]>([]);
-  const [userInput, setUserInput] = useState("");
-  const [isAILoading, setIsAILoading] = useState(false);
+export const AIChat: React.FC<AIChatProps> = ({ 
+  interviewId, 
+  candidateName,
+  position,
+  settings
+}) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputMessage, setInputMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [interviewStarted, setInterviewStarted] = useState(false);
+  const [videoEnabled, setVideoEnabled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Sample interviewer avatars for different styles
+  const interviewerAvatars: Record<string, string> = {
+    friendly: "https://api.dicebear.com/7.x/personas/svg?seed=interviewer1",
+    tough: "https://api.dicebear.com/7.x/personas/svg?seed=interviewer2",
+    technical: "https://api.dicebear.com/7.x/personas/svg?seed=interviewer3",
+  };
+  
+  // Get the correct avatar based on interviewer style
+  const interviewerAvatar = interviewerAvatars[settings?.interviewer_style || 'friendly'];
 
+  // Automatically scroll to the bottom of the messages
   useEffect(() => {
-    if (selectedExam) {
-      // Reset the conversation with a new initial prompt for this exam
-      const initialPrompt = getInitialPrompt(selectedExam);
-      setMessages([{ role: "assistant", content: initialPrompt }]);
-    }
-  }, [selectedExam]);
-
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const getInitialPrompt = (exam: typeof selectedExam) => {
-    if (!exam) return "";
+  // Start the interview with an introduction
+  useEffect(() => {
+    if (!interviewStarted && candidateName && position) {
+      setInterviewStarted(true);
+      
+      // Set interview type based on settings
+      const interviewType = settings?.interview_type || "technical";
+      const experienceLevel = settings?.experience_level || "mid";
+      const stressLevel = settings?.stress_level || "normal";
+      
+      // Generate appropriate introduction based on settings
+      let introMessage = `Hello ${candidateName}, I'm your interviewer for the ${position} position. `;
+      
+      if (interviewType === "behavioral") {
+        introMessage += "Today, I'll be asking about your past experiences and how they demonstrate your skills. ";
+      } else if (interviewType === "technical") {
+        introMessage += "I'll be asking technical questions to assess your skills for this role. ";
+      } else if (interviewType === "panel") {
+        introMessage += "Today you'll be speaking with several interviewers to assess different aspects of your experience. ";
+      } else if (interviewType === "case") {
+        introMessage += "We'll be working through a business case to see your problem-solving approach. ";
+      } else if (interviewType === "informational") {
+        introMessage += "This is primarily an informational interview to help you learn more about our company and the role. ";
+      }
+      
+      // Add stress level context
+      if (stressLevel === "high") {
+        introMessage += "Please note that this interview will be challenging to assess how you perform under pressure. ";
+      }
+      
+      introMessage += "Let's get started. Could you please introduce yourself and tell me why you're interested in this position?";
+      
+      // Add initial message from the interviewer
+      setMessages([
+        {
+          role: "assistant",
+          content: introMessage,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, [interviewStarted, candidateName, position, settings]);
+
+  const handleSendMessage = () => {
+    if (!inputMessage.trim()) return;
+
+    // Add user message
+    const userMessage: Message = {
+      role: "user",
+      content: inputMessage,
+      timestamp: new Date(),
+    };
     
-    if (exam.category === "Technical") {
-      return `Hello! I'm your technical interviewer for the ${exam.title} assessment. This is a ${exam.difficulty} level technical evaluation. ${exam.description || ''}
+    setMessages((prev) => [...prev, userMessage]);
+    setInputMessage("");
+    setIsLoading(true);
 
-I'll ask you a series of technical questions related to the position you're applying for. Please respond to each question with your best answer. I'll provide feedback and follow-up questions based on your responses.
+    // Simulate API call to get AI response
+    setTimeout(() => {
+      // Here you would normally call a real API to get the AI's response
+      // For demonstration purposes, we're using canned responses
+      const aiResponses: Record<string, string[]> = {
+        technical: [
+          "Can you explain your experience with modern JavaScript frameworks?", 
+          "What challenges did you face in your last project and how did you overcome them?",
+          "How would you optimize a slow-performing website?",
+          "Describe your approach to testing and quality assurance.",
+          "What's your experience with cloud platforms like AWS, Azure, or GCP?"
+        ],
+        behavioral: [
+          "Tell me about a time you had to deal with a difficult team member.",
+          "Describe a situation where you had to work under a tight deadline.",
+          "Can you share an example of when you showed leadership?",
+          "How do you handle criticism?",
+          "What's your biggest professional achievement so far?"
+        ],
+        informational: [
+          "Do you have any questions about our company culture?",
+          "What aspects of the role are you most excited about?",
+          "What skills are you looking to develop in this position?",
+          "How do you see this role fitting into your long-term career goals?",
+          "What do you value most in a workplace?"
+        ]
+      };
+      
+      // Select response type based on interview settings
+      const interviewType = settings?.interview_type || "technical";
+      const responseArray = aiResponses[interviewType] || aiResponses.technical;
+      
+      // Pick a "random" response from the array based on the number of existing messages
+      const responseIndex = (messages.length / 2) % responseArray.length;
+      const aiResponse = responseArray[responseIndex];
 
-Let's begin with your first question: Please introduce yourself and explain your relevant technical experience for this position.`;
-    } else {
-      return `Hello! I'm your interviewer for the ${exam.title} assessment. This is designed to evaluate your ${exam.category.toLowerCase()} skills and fit for the role. ${exam.description || ''}
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: aiResponse,
+          timestamp: new Date(),
+        },
+      ]);
+      setIsLoading(false);
+    }, 1500);
+  };
 
-I'll ask you a series of questions to better understand your work style, problem-solving approach, and how you handle various professional situations.
-
-Let's begin with your first question: Could you tell me about yourself and what interests you about this position?`;
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!userInput.trim() || !selectedExam) return;
-    
-    const userMessage = { role: "user" as const, content: userInput };
-    setMessages(prev => [...prev, userMessage]);
-    setUserInput("");
-    setIsAILoading(true);
-    
-    // Simulate AI thinking (in a real app, we would call an API endpoint)
-    setTimeout(() => {
-      let aiResponse = "";
-      
-      // Generate a contextual response based on the exam type and user input
-      if (selectedExam.category === "Technical") {
-        if (userInput.toLowerCase().includes("experience") || messages.length <= 1) {
-          aiResponse = "Thank you for sharing that. Now, let's dive into some technical questions.\n\nCan you explain how you would approach debugging a complex issue in a production environment?";
-        } else if (userInput.toLowerCase().includes("debug") || userInput.toLowerCase().includes("production")) {
-          aiResponse = "That's a good approach to debugging. Let's move to a more specific question related to your technical skills.\n\n";
-          
-          // Add a domain-specific question
-          if (selectedExam.title.toLowerCase().includes("frontend")) {
-            aiResponse += "How would you optimize the performance of a React application that's rendering a large dataset?";
-          } else if (selectedExam.title.toLowerCase().includes("backend")) {
-            aiResponse += "How would you design a scalable API that needs to handle high traffic and maintain data consistency?";
-          } else if (selectedExam.title.toLowerCase().includes("data")) {
-            aiResponse += "Can you explain your approach to cleaning and preparing a large dataset for analysis?";
-          } else {
-            aiResponse += "Tell me about a challenging technical project you worked on and how you overcame obstacles.";
-          }
-        } else {
-          aiResponse = "Thank you for your detailed answer. One more question: How do you stay updated with the latest technologies and best practices in your field?";
-        }
-      } else { // Behavioral questions
-        if (messages.length <= 1) {
-          aiResponse = "Thank you for introducing yourself. I'd like to understand more about your work style.\n\nCan you describe a challenging situation you faced in a previous role and how you handled it?";
-        } else if (userInput.toLowerCase().includes("challenge") || userInput.toLowerCase().includes("situation")) {
-          aiResponse = "That's a great example of problem-solving. Now I'd like to know:\n\nHow do you prioritize tasks when you have multiple deadlines approaching?";
-        } else if (userInput.toLowerCase().includes("prioritize") || userInput.toLowerCase().includes("deadline")) {
-          aiResponse = "Effective prioritization is important. Let's talk about teamwork:\n\nCan you tell me about a time when you had to collaborate with a difficult team member? How did you handle it?";
-        } else {
-          aiResponse = "Thank you for sharing that experience. Final question:\n\nWhere do you see yourself professionally in five years, and how does this role align with your career goals?";
-        }
-      }
-      
-      const aiMessage = { role: "assistant" as const, content: aiResponse };
-      setMessages(prev => [...prev, aiMessage]);
-      setIsAILoading(false);
-    }, 2000);
-  };
-
-  const handleResetConversation = () => {
-    if (!selectedExam) return;
-    
-    const initialPrompt = getInitialPrompt(selectedExam);
-    setMessages([{ role: "assistant", content: initialPrompt }]);
-    
-    // Scroll to the bottom
-    setTimeout(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-      }
-    }, 100);
+  const toggleVideo = () => {
+    setVideoEnabled(!videoEnabled);
   };
 
   return (
-    <div className="flex-grow overflow-hidden flex flex-col">
-      <div className="bg-gray-50 p-4 rounded-lg mb-4">
-        <p className="text-sm text-gray-600">
-          This is an AI-powered assessment. The AI will ask you a series of questions related to the {selectedExam?.category?.toLowerCase()} aspects of the role. 
-          Answer the questions as you would in a real interview. Your responses will help the hiring team understand your qualifications better.
-        </p>
-      </div>
+    <Card className="flex flex-col h-[calc(100vh-200px)]">
+      <CardHeader className="pb-0">
+        <CardTitle className="flex justify-between items-center">
+          <span>AI Interview - {position}</span>
+          {videoEnabled && (
+            <Button variant="ghost" size="sm" onClick={toggleVideo}>
+              <X className="h-4 w-4 mr-1" /> Close Video
+            </Button>
+          )}
+        </CardTitle>
+      </CardHeader>
       
-      <div className="flex-grow overflow-y-auto mb-4 pr-2" style={{ maxHeight: "400px" }}>
-        <div className="space-y-4">
+      <CardContent className="flex flex-col flex-grow p-0 overflow-hidden">
+        {videoEnabled && (
+          <div className="relative w-full h-40 bg-gray-100 flex items-center justify-center border-b">
+            <div className="absolute inset-0 bg-cover bg-center" 
+                 style={{ 
+                   backgroundImage: `url(https://source.unsplash.com/800x600/?${settings?.virtual_background || 'office'})`,
+                   opacity: 0.5
+                 }}></div>
+            <div className="relative z-10 flex items-center">
+              <div className="w-32 h-32 rounded-full bg-gray-300 overflow-hidden mr-8 border-4 border-white shadow-md">
+                <img src={interviewerAvatar} alt="AI Interviewer" className="w-full h-full object-cover" />
+              </div>
+              <div className="w-24 h-24 rounded-full bg-gray-300 overflow-hidden border-4 border-white shadow-md">
+                <div className="w-full h-full bg-gray-400 flex items-center justify-center text-white">
+                  You
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div className="flex-grow overflow-y-auto p-4">
           {messages.map((message, index) => (
-            <div key={index} className={`flex ${message.role === "assistant" ? "justify-start" : "justify-end"}`}>
-              <div className={`max-w-[80%] rounded-lg p-4 ${
-                message.role === "assistant" 
-                  ? "bg-gray-100 text-gray-800" 
-                  : "bg-blue-500 text-white"
-              }`}>
+            <div
+              key={index}
+              className={`flex mb-4 ${
+                message.role === "user" ? "justify-end" : "justify-start"
+              }`}
+            >
+              <div
+                className={`max-w-[80%] rounded-lg p-3 ${
+                  message.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary"
+                }`}
+              >
                 {message.role === "assistant" && (
                   <div className="flex items-center mb-2">
                     <Avatar className="h-6 w-6 mr-2">
-                      <AvatarFallback className="bg-purple-100 text-purple-800">AI</AvatarFallback>
-                      <AvatarImage src="/placeholder.svg" />
+                      <img src={interviewerAvatar} alt="AI Interviewer" />
                     </Avatar>
                     <span className="text-xs font-medium">AI Interviewer</span>
                   </div>
                 )}
-                <div className="whitespace-pre-line">{message.content}</div>
-              </div>
-            </div>
-          ))}
-          {isAILoading && (
-            <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-lg p-4 bg-gray-100">
-                <div className="flex items-center">
-                  <Avatar className="h-6 w-6 mr-2">
-                    <AvatarFallback className="bg-purple-100 text-purple-800">AI</AvatarFallback>
-                  </Avatar>
-                  <div className="flex items-center space-x-2">
-                    <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                    <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
-                  </div>
+                <div className="whitespace-pre-wrap">{message.content}</div>
+                <div className="text-xs mt-2 opacity-70 text-right">
+                  {message.timestamp.toLocaleTimeString()}
                 </div>
               </div>
             </div>
-          )}
+          ))}
           <div ref={messagesEndRef} />
         </div>
-      </div>
-      
-      <div className="relative">
-        <Textarea
-          placeholder="Type your response here..."
-          value={userInput}
-          onChange={(e) => setUserInput(e.target.value)}
-          className="resize-none pr-12"
-          rows={3}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-        />
-        <Button
-          size="sm"
-          className="absolute bottom-3 right-3"
-          onClick={handleSendMessage}
-          disabled={!userInput.trim() || isAILoading}
-        >
-          <Send className="h-4 w-4" />
-        </Button>
-      </div>
-      
-      <div className="flex justify-between border-t pt-4">
-        <p className="text-xs text-gray-500">
-          <Bot className="h-3 w-3 inline-block mr-1" />
-          AI responses are generated for practice purposes only
-        </p>
-        <Button variant="outline" size="sm" onClick={handleResetConversation}>
-          <RefreshCw className="h-3 w-3 mr-1" />
-          Reset Conversation
-        </Button>
-      </div>
-    </div>
+        
+        <div className="p-4 border-t">
+          <div className="flex space-x-2">
+            <Button
+              variant="outline"
+              size="icon"
+              type="button"
+              onClick={toggleVideo}
+            >
+              <Video className={`h-5 w-5 ${videoEnabled ? 'text-primary' : ''}`} />
+            </Button>
+            <Button variant="outline" size="icon" type="button">
+              <Mic className="h-5 w-5" />
+            </Button>
+            <Textarea
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your response..."
+              className="flex-1 min-h-[40px]"
+              rows={1}
+            />
+            <Button
+              type="button"
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim() || isLoading}
+              className="px-4"
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };

@@ -2,9 +2,10 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, CalendarIcon, RefreshCw } from "lucide-react";
+import { ChevronRight, CalendarIcon, RefreshCw, Video } from "lucide-react";
 import { LoadingState } from "./LoadingState";
 import { EmptyState } from "./EmptyState";
+import { Badge } from "@/components/ui/badge";
 
 interface Interview {
   id: string;
@@ -13,6 +14,11 @@ interface Interview {
   candidate_name: string;
   position: string;
   status: string;
+  settings?: {
+    interview_type?: string;
+    ai_technical_test?: boolean;
+    personality_test?: boolean;
+  };
 }
 
 interface InterviewsTabProps {
@@ -65,7 +71,29 @@ export const InterviewsTab = ({
                     {interview.status}
                   </span>
                 </div>
-                <div className="flex justify-end mt-3">
+                
+                {interview.settings && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {interview.settings.interview_type && (
+                      <Badge variant="outline" className="capitalize">{interview.settings.interview_type}</Badge>
+                    )}
+                    {interview.settings.ai_technical_test && (
+                      <Badge variant="outline">Technical Test</Badge>
+                    )}
+                    {interview.settings.personality_test && (
+                      <Badge variant="outline">Personality Test</Badge>
+                    )}
+                  </div>
+                )}
+                
+                <div className="flex justify-between mt-3">
+                  <Button asChild variant="secondary" size="sm">
+                    <Link to={`/interviews/${interview.id}`}>
+                      <Video className="mr-2 h-4 w-4" />
+                      AI Interview
+                    </Link>
+                  </Button>
+                  
                   <Button asChild variant="outline" size="sm">
                     <Link to={`/interviews/${interview.id}`}>
                       View Details

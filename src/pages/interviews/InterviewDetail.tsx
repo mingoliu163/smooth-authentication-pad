@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -15,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, Info, User, Video } from "lucide-react";
+import { Calendar, Clock, Info, User, Video, Briefcase } from "lucide-react";
 import { InterviewHeader } from "@/components/interviews/InterviewHeader";
 import { AIChat } from "@/components/interviews/AIChat";
 import { ExamCard } from "@/components/interviews/ExamCard";
@@ -48,6 +47,7 @@ interface Exam {
   title: string;
   difficulty: string;
   category: string;
+  description?: string | null;
 }
 
 const InterviewDetail = () => {
@@ -78,7 +78,7 @@ const InterviewDetail = () => {
         .from("interview_exams")
         .select(`
           exam_id,
-          exam_bank(id, title, difficulty, category)
+          exam_bank(id, title, difficulty, category, description)
         `)
         .eq("interview_id", id);
 
@@ -190,7 +190,7 @@ const InterviewDetail = () => {
                     <Clock className="h-4 w-4 mr-2" />
                     Status
                   </div>
-                  <Badge variant={interview.status === "Completed" ? "success" : "default"}>
+                  <Badge variant={interview.status === "Completed" ? "secondary" : "default"}>
                     {interview.status}
                   </Badge>
                 </div>
@@ -284,7 +284,7 @@ const InterviewDetail = () => {
           ) : exams && exams.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {exams.map((exam) => (
-                <ExamCard key={exam.id} exam={exam} />
+                <ExamCard key={exam.id} exam={exam} selectedExam={null} />
               ))}
             </div>
           ) : (

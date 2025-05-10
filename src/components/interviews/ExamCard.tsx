@@ -2,18 +2,24 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { AIChat } from "./AIChat";
 
-interface ExamCardProps {
-  selectedExam: {
-    id: string;
-    title: string;
-    difficulty: string;
-    category: string;
-    description: string | null;
-  } | null;
+interface Exam {
+  id: string;
+  title: string;
+  difficulty: string;
+  category: string;
+  description?: string | null;
 }
 
-export const ExamCard = ({ selectedExam }: ExamCardProps) => {
-  if (!selectedExam) return null;
+interface ExamCardProps {
+  selectedExam: Exam | null;
+  exam?: Exam;
+}
+
+export const ExamCard = ({ selectedExam, exam }: ExamCardProps) => {
+  // Use either exam or selectedExam, depending on which one is provided
+  const examData = exam || selectedExam;
+  
+  if (!examData) return null;
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -37,24 +43,24 @@ export const ExamCard = ({ selectedExam }: ExamCardProps) => {
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle>{selectedExam.title}</CardTitle>
+            <CardTitle>{examData.title}</CardTitle>
             <CardDescription className="mt-1">
-              AI-powered {selectedExam.category} assessment ({selectedExam.difficulty})
+              AI-powered {examData.category} assessment ({examData.difficulty})
             </CardDescription>
           </div>
           <div className="flex gap-1">
-            <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(selectedExam.difficulty)}`}>
-              {selectedExam.difficulty}
+            <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(examData.difficulty)}`}>
+              {examData.difficulty}
             </span>
-            <span className={`text-xs px-2 py-1 rounded-full ${getCategoryColor(selectedExam.category)}`}>
-              {selectedExam.category}
+            <span className={`text-xs px-2 py-1 rounded-full ${getCategoryColor(examData.category)}`}>
+              {examData.category}
             </span>
           </div>
         </div>
       </CardHeader>
       
       <CardContent className="flex-grow overflow-hidden flex flex-col">
-        <AIChat selectedExam={selectedExam} />
+        <AIChat interviewId={examData.id} candidateName="" position="" settings={{}} />
       </CardContent>
     </Card>
   );

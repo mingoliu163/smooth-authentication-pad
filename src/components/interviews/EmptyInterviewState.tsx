@@ -6,9 +6,17 @@ import { Video } from "lucide-react";
 
 interface EmptyInterviewStateProps {
   onStart: () => void;
+  candidates?: any[];
+  interviewers?: any[];
+  onSuccess?: () => void;
 }
 
-export const EmptyInterviewState: React.FC<EmptyInterviewStateProps> = ({ onStart }) => {
+export const EmptyInterviewState: React.FC<EmptyInterviewStateProps> = ({ 
+  onStart,
+  candidates,
+  interviewers,
+  onSuccess 
+}) => {
   return (
     <Card>
       <CardHeader>

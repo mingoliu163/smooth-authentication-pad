@@ -73,8 +73,8 @@ const InterviewManagement = () => {
           
           allCandidates.push({
             id: candidate.id,
-            name: candidate.name,
-            email: candidate.email,
+            name: candidate.name || "",
+            email: candidate.email || "",
             user_id: candidate.user_id,
             first_name: profile?.first_name || null,
             last_name: profile?.last_name || null
@@ -95,12 +95,20 @@ const InterviewManagement = () => {
               name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unnamed',
               email: '', // We don't have email from profiles table
               user_id: profile.id,
-              first_name: profile.first_name,
-              last_name: profile.last_name
+              first_name: profile.first_name || "",
+              last_name: profile.last_name || ""
             });
           }
         });
       }
+
+      // Ensure we don't have empty names
+      const validatedCandidates = allCandidates.map(candidate => {
+        if (!candidate.name || candidate.name.trim() === "") {
+          candidate.name = candidate.email ? candidate.email.split("@")[0] : "Unknown Candidate";
+        }
+        return candidate;
+      });
 
       // Fetch potential interviewers (HR and admin users)
       const { data: interviewersData, error: interviewersError } = await supabase
@@ -115,8 +123,8 @@ const InterviewManagement = () => {
       } else {
         const formattedInterviewers: Interviewer[] = (interviewersData || []).map(interviewer => ({
           id: interviewer.id,
-          first_name: interviewer.first_name,
-          last_name: interviewer.last_name,
+          first_name: interviewer.first_name || "",
+          last_name: interviewer.last_name || "",
           email: "", // Since profiles doesn't have email, we provide an empty string
           name: `${interviewer.first_name || ''} ${interviewer.last_name || ''}`.trim() || "Unnamed Interviewer"
         }));
@@ -139,7 +147,7 @@ const InterviewManagement = () => {
           id: interview.id,
           date: interview.date,
           candidate_id: candidate?.id || "",
-          candidate_name: candidate?.name || interview.candidate_name || "Unknown",
+          candidate_name: interview.candidate_name || (candidate?.name || "Unknown"),
           interviewer_id: interviewer?.id || null,
           interviewer_name: interviewer ? 
             `${interviewer.first_name || ""} ${interviewer.last_name || ""}`.trim() || "Unnamed Interviewer" : 
@@ -153,7 +161,7 @@ const InterviewManagement = () => {
 
       setJobs(jobsData || []);
       setInterviews(formattedInterviews);
-      setCandidates(allCandidates);
+      setCandidates(validatedCandidates);
       setExams(examsData || []);
     } catch (error: any) {
       console.error("Error fetching data:", error);
@@ -178,13 +186,17 @@ const InterviewManagement = () => {
       
     return {
       id: candidate.id,
-      name: fullName || candidate.email,
-      email: candidate.email,
+      name: fullName || candidate.email || "Unknown Candidate",
+      email: candidate.email || "",
       user_id: candidate.user_id,
-      first_name: candidate.first_name,
-      last_name: candidate.last_name
+      first_name: candidate.first_name || "",
+      last_name: candidate.last_name || ""
     };
   });
+
+  // Filter out candidates with empty names
+  const validCandidates = formattedCandidates.filter(c => 
+    c.name && c.name !== "Unknown Candidate" && c.name.trim() !== "");
 
   return (
     <AdminLayout>
@@ -192,7 +204,7 @@ const InterviewManagement = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Interview Management</h1>
           <InterviewFormDialog 
-            candidates={formattedCandidates}
+            candidates={validCandidates.length > 0 ? validCandidates : formattedCandidates}
             interviewers={interviewers}
             onInterviewCreated={fetchData}
           />

@@ -87,6 +87,16 @@ export const InterviewFormDialog = ({
     try {
       setIsSubmitting(true);
 
+      // Validate that a candidate is selected
+      if (!data.candidate_id) {
+        throw new Error("Please select a candidate for the interview.");
+      }
+
+      // Validate that a position is entered
+      if (!data.position || data.position.trim() === '') {
+        throw new Error("Please enter a position for the interview.");
+      }
+
       // Format date for Supabase
       const formattedDate = data.date.toISOString();
 
@@ -97,11 +107,24 @@ export const InterviewFormDialog = ({
         throw new Error("Selected candidate not found. Please select a valid candidate.");
       }
       
-      const candidateName = selectedCandidate.name || 
-                           (selectedCandidate.first_name || selectedCandidate.last_name ? 
-                           `${selectedCandidate.first_name || ''} ${selectedCandidate.last_name || ''}`.trim() : 
-                           "Unknown");
+      // Determine candidate name, prioritizing different fields
+      let candidateName = "Unknown";
+      
+      if (selectedCandidate.name && selectedCandidate.name.trim() !== '') {
+        candidateName = selectedCandidate.name;
+      } else if (selectedCandidate.first_name || selectedCandidate.last_name) {
+        candidateName = `${selectedCandidate.first_name || ''} ${selectedCandidate.last_name || ''}`.trim();
+      } else if (selectedCandidate.email) {
+        candidateName = selectedCandidate.email.split('@')[0]; // Use email name as fallback
+      }
+      
+      // Final validation check for candidate name
+      if (candidateName === "Unknown" || !candidateName || candidateName.trim() === '') {
+        throw new Error("Cannot determine candidate name. Please update candidate information.");
+      }
 
+      console.log("Creating interview with candidate name:", candidateName);
+      
       // Interview settings to be saved as metadata
       const interviewSettings = {
         ai_technical_test: data.ai_technical_test,
@@ -535,4 +558,3 @@ export const InterviewFormDialog = ({
     </Dialog>
   );
 };
-

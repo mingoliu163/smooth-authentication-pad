@@ -20,6 +20,12 @@ export const InterviewsListCard = ({
   exams,
   onRefresh,
 }: InterviewsListCardProps) => {
+  // 添加一个处理开始面试的函数
+  const handleStartInterview = () => {
+    console.log("Starting interview preparation...");
+    // 这里可以添加导航到面试准备页面的逻辑
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -35,6 +41,7 @@ export const InterviewsListCard = ({
           </div>
         ) : interviews.length === 0 ? (
           <EmptyInterviewState 
+            onStart={handleStartInterview}
             candidates={candidates}
             interviewers={interviewers}
             onSuccess={onRefresh}

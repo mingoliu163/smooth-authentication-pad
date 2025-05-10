@@ -60,7 +60,12 @@ export const ExamCard = ({ selectedExam, exam }: ExamCardProps) => {
       </CardHeader>
       
       <CardContent className="flex-grow overflow-hidden flex flex-col">
-        <AIChat interviewId={examData.id} candidateName="" position="" settings={{}} />
+        <AIChat 
+          interviewId={examData.id} 
+          candidateName="" 
+          position="" 
+          settings={{}} 
+        />
       </CardContent>
     </Card>
   );

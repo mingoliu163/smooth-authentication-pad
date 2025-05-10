@@ -30,6 +30,9 @@ interface InterviewFormDialogProps {
     id: string;
     name: string;
     email: string;
+    user_id?: string;
+    first_name?: string;
+    last_name?: string;
   }>;
   interviewers: Array<{
     id: string;
@@ -89,7 +92,15 @@ export const InterviewFormDialog = ({
 
       // Get candidate name from the selected candidate_id
       const selectedCandidate = candidates.find(c => c.id === data.candidate_id);
-      const candidateName = selectedCandidate ? selectedCandidate.name : "Unknown";
+      
+      if (!selectedCandidate) {
+        throw new Error("Selected candidate not found. Please select a valid candidate.");
+      }
+      
+      const candidateName = selectedCandidate.name || 
+                           (selectedCandidate.first_name || selectedCandidate.last_name ? 
+                           `${selectedCandidate.first_name || ''} ${selectedCandidate.last_name || ''}`.trim() : 
+                           "Unknown");
 
       // Interview settings to be saved as metadata
       const interviewSettings = {
@@ -524,3 +535,4 @@ export const InterviewFormDialog = ({
     </Dialog>
   );
 };
+

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { supabase } from "@/integrations/supabase/client";
@@ -97,33 +96,41 @@ export const InterviewFormDialog = ({
         throw new Error("Please enter a position for the interview.");
       }
 
-      // Format date for Supabase
-      const formattedDate = data.date.toISOString();
-
-      // Get candidate name from the selected candidate_id
+      // Get candidate from the candidates array
       const selectedCandidate = candidates.find(c => c.id === data.candidate_id);
       
       if (!selectedCandidate) {
         throw new Error("Selected candidate not found. Please select a valid candidate.");
       }
       
-      // Determine candidate name, prioritizing different fields
-      let candidateName = "Unknown";
+      // Determine candidate name with proper fallbacks
+      let candidateName = "";
       
+      // First priority: use the name field if it exists and is not empty
       if (selectedCandidate.name && selectedCandidate.name.trim() !== '') {
-        candidateName = selectedCandidate.name;
-      } else if (selectedCandidate.first_name || selectedCandidate.last_name) {
-        candidateName = `${selectedCandidate.first_name || ''} ${selectedCandidate.last_name || ''}`.trim();
-      } else if (selectedCandidate.email) {
-        candidateName = selectedCandidate.email.split('@')[0]; // Use email name as fallback
+        candidateName = selectedCandidate.name.trim();
+      }
+      // Second priority: construct from first_name and last_name
+      else if (selectedCandidate.first_name || selectedCandidate.last_name) {
+        const firstName = selectedCandidate.first_name?.trim() || '';
+        const lastName = selectedCandidate.last_name?.trim() || '';
+        candidateName = `${firstName} ${lastName}`.trim();
+      }
+      // Third priority: use email prefix
+      else if (selectedCandidate.email && selectedCandidate.email.trim() !== '') {
+        candidateName = selectedCandidate.email.split('@')[0];
       }
       
-      // Final validation check for candidate name
-      if (candidateName === "Unknown" || !candidateName || candidateName.trim() === '') {
-        throw new Error("Cannot determine candidate name. Please update candidate information.");
+      // Final validation - ensure we have a valid candidate name
+      if (!candidateName || candidateName.trim() === '') {
+        throw new Error("Cannot determine candidate name. Please ensure the candidate has a valid name or email.");
       }
 
-      console.log("Creating interview with candidate name:", candidateName);
+      console.log("Selected candidate:", selectedCandidate);
+      console.log("Determined candidate name:", candidateName);
+      
+      // Format date for Supabase
+      const formattedDate = data.date.toISOString();
       
       // Interview settings to be saved as metadata
       const interviewSettings = {
@@ -137,22 +144,32 @@ export const InterviewFormDialog = ({
         notes: data.notes,
       };
 
-      // Insert new interview with proper foreign key
-      const { data: interviewData, error } = await supabase
+      // Prepare the interview data with explicit candidate_name
+      const interviewData = {
+        candidate_id: data.candidate_id,
+        candidate_name: candidateName, // Explicitly set the candidate name
+        interviewer_id: data.interviewer_id === 'none' ? null : data.interviewer_id,
+        position: data.position.trim(),
+        date: formattedDate,
+        status: 'Scheduled',
+        settings: interviewSettings,
+        user_id: selectedCandidate.user_id || null
+      };
+
+      console.log("Interview data to insert:", interviewData);
+
+      // Insert new interview
+      const { data: result, error } = await supabase
         .from('interviews')
-        .insert({
-          candidate_id: data.candidate_id,
-          candidate_name: candidateName,
-          interviewer_id: data.interviewer_id === 'none' ? null : data.interviewer_id,
-          position: data.position,
-          date: formattedDate,
-          status: 'Scheduled',
-          settings: interviewSettings // Add the settings as a JSONB field
-        })
+        .insert(interviewData)
         .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
 
+      console.log("Interview created successfully:", result);
       toast.success('Interview scheduled successfully');
       form.reset();
       setOpen(false);
@@ -206,7 +223,7 @@ export const InterviewFormDialog = ({
                         <SelectContent>
                           {candidates.map((candidate) => (
                             <SelectItem key={candidate.id} value={candidate.id}>
-                              {candidate.name}
+                              {candidate.name} {candidate.email && `(${candidate.email})`}
                             </SelectItem>
                           ))}
                         </SelectContent>

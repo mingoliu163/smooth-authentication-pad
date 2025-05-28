@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { supabase } from "@/integrations/supabase/client";
@@ -144,10 +145,46 @@ export const InterviewFormDialog = ({
         notes: data.notes,
       };
 
+      // Check if this candidate exists in the candidates table
+      // If not, create a record to ensure the trigger works correctly
+      const { data: existingCandidate, error: candidateCheckError } = await supabase
+        .from('candidates')
+        .select('id, name')
+        .eq('id', data.candidate_id)
+        .maybeSingle();
+
+      if (candidateCheckError) {
+        console.error("Error checking candidate:", candidateCheckError);
+      }
+
+      // If candidate doesn't exist in candidates table, create one
+      if (!existingCandidate) {
+        console.log("Creating candidate record for:", candidateName);
+        const { error: candidateInsertError } = await supabase
+          .from('candidates')
+          .insert({
+            id: data.candidate_id,
+            name: candidateName,
+            email: selectedCandidate.email || '',
+            user_id: selectedCandidate.user_id || null,
+            position: data.position,
+            status: 'Active',
+            applied_date: new Date().toISOString(),
+            avatar_url: '',
+            tags: []
+          });
+
+        if (candidateInsertError) {
+          console.error("Error creating candidate:", candidateInsertError);
+          // Don't throw here as we can still proceed with explicit candidate_name
+        }
+      }
+
       // Prepare the interview data with explicit candidate_name
+      // This ensures the trigger will work correctly
       const interviewData = {
         candidate_id: data.candidate_id,
-        candidate_name: candidateName, // Explicitly set the candidate name
+        candidate_name: candidateName, // Explicitly set this
         interviewer_id: data.interviewer_id === 'none' ? null : data.interviewer_id,
         position: data.position.trim(),
         date: formattedDate,

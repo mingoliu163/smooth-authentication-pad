@@ -30,6 +30,7 @@ interface Interview {
   interviewer_id: string | null;
   position: string;
   status: string;
+  user_id?: string;
   settings?: {
     interview_mode?: string;
     interview_type?: string;
@@ -52,7 +53,7 @@ interface Exam {
 
 const InterviewDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [isPreparationDialogOpen, setIsPreparationDialogOpen] = useState(false);
   const [interviewSettings, setInterviewSettings] = useState<any>({});
@@ -60,13 +61,19 @@ const InterviewDetail = () => {
   const { data: interview, isLoading: interviewLoading } = useQuery({
     queryKey: ["interview", id],
     queryFn: async () => {
+      console.log("Fetching interview for ID:", id);
       const { data, error } = await supabase
         .from("interviews")
         .select("*")
         .eq("id", id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching interview:", error);
+        throw error;
+      }
+      
+      console.log("Interview data fetched:", data);
       return data as Interview;
     },
   });
@@ -87,6 +94,26 @@ const InterviewDetail = () => {
     },
   });
 
+  // Check if current user has access to this interview
+  const hasAccess = () => {
+    if (!user || !interview) return false;
+    
+    console.log("Checking access for user:", user.id, "Interview user_id:", interview.user_id, "Interview candidate_id:", interview.candidate_id);
+    
+    // Admin and HR can access all interviews
+    if (userRole === 'admin' || userRole === 'hr') {
+      return true;
+    }
+    
+    // Job seekers can only access their own interviews
+    if (userRole === 'job_seeker') {
+      // Check if user ID matches either user_id or candidate_id in the interview
+      return interview.user_id === user.id || interview.candidate_id === user.id;
+    }
+    
+    return false;
+  };
+
   const formatDate = (dateString: string) => {
     const options: Intl.DateTimeFormatOptions = { 
       year: 'numeric', 
@@ -99,10 +126,12 @@ const InterviewDetail = () => {
   };
   
   const handleStartAIInterview = () => {
+    console.log("Starting AI interview preparation");
     setIsPreparationDialogOpen(true);
   };
 
   const handleStartInterview = (settings: any) => {
+    console.log("Starting interview with settings:", settings);
     setInterviewSettings({
       ...interview?.settings,
       ...settings
@@ -131,6 +160,26 @@ const InterviewDetail = () => {
             <CardTitle>Interview Not Found</CardTitle>
             <CardDescription>
               The interview you're looking for could not be found.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link to="/dashboard">Back to Dashboard</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!hasAccess()) {
+    return (
+      <div className="container mx-auto p-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Access Denied</CardTitle>
+            <CardDescription>
+              You don't have permission to access this interview.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -266,7 +315,7 @@ const InterviewDetail = () => {
               )}
 
               <div className="mt-6 pt-6 border-t border-gray-100">
-                <Button onClick={handleStartAIInterview}>
+                <Button onClick={handleStartAIInterview} size="lg">
                   <Video className="mr-2 h-4 w-4" />
                   Start AI Interview
                 </Button>
